@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { adminAuditLogs, userProfiles, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { and, eq, inArray } from "drizzle-orm";
+import { jsonHttpError } from "@/lib/http-error";
 
 export type AdminRole = "user" | "admin" | "super_admin";
 export type AccountStatus = "active" | "suspended" | "deleted";
@@ -73,7 +74,7 @@ export async function getAdminPrincipal(): Promise<AdminPrincipal | null> {
 export async function requireAdmin(): Promise<AdminPrincipal> {
   const principal = await getAdminPrincipal();
   if (!principal) {
-    throw Response.json({ detail: "Admin access required" }, { status: 403 });
+    throw jsonHttpError("Admin access required", 403);
   }
   return principal;
 }
@@ -81,7 +82,7 @@ export async function requireAdmin(): Promise<AdminPrincipal> {
 export async function requireSuperAdmin(): Promise<AdminPrincipal> {
   const principal = await requireAdmin();
   if (principal.role !== "super_admin") {
-    throw Response.json({ detail: "Super admin access required" }, { status: 403 });
+    throw jsonHttpError("Super admin access required", 403);
   }
   return principal;
 }

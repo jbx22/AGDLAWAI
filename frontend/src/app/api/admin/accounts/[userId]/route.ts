@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { db } from "@/db";
 import { userProfiles, users } from "@/db/schema";
 import { adminIp, requireSuperAdmin, writeAdminLog } from "@/lib/admin";
+import { errorToResponse } from "@/lib/http-error";
 import { eq } from "drizzle-orm";
 
 const ADMIN_ROLES = new Set(["user", "admin", "super_admin"]);
@@ -101,7 +102,8 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    if (err instanceof Response) throw err;
+    const response = errorToResponse(err);
+    if (response) return response;
     console.error("PATCH /api/admin/accounts/[userId] error:", err);
     return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
   }
@@ -135,7 +137,8 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    if (err instanceof Response) throw err;
+    const response = errorToResponse(err);
+    if (response) return response;
     console.error("DELETE /api/admin/accounts/[userId] error:", err);
     return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
   }

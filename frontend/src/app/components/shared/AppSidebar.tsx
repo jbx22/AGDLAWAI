@@ -11,6 +11,7 @@ import {
     User,
     ChevronsUpDown,
     ChevronDown,
+    Crown,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserProfile } from "@/contexts/UserProfileContext";
@@ -30,6 +31,7 @@ const NAV_ITEMS = [
 ];
 
 const ADMIN_NAV_ITEM = { href: "/admin", label: "Admin", icon: ShieldCheck };
+const SUBSCRIPTION_NAV_ITEM = { href: "/subscription", label: "الاشتراك", icon: Crown };
 
 interface AppSidebarProps {
     isOpen: boolean;
@@ -168,7 +170,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
             </div>
 
             {/* Nav items */}
-            {[...NAV_ITEMS, ...(profile?.role === "admin" || profile?.role === "super_admin" ? [ADMIN_NAV_ITEM] : [])].map(({ href, label, icon: Icon }) => {
+            {[...NAV_ITEMS, SUBSCRIPTION_NAV_ITEM, ...(profile?.role === "admin" || profile?.role === "super_admin" ? [ADMIN_NAV_ITEM] : [])].map(({ href, label, icon: Icon }) => {
                 const isActive =
                     pathname === href || pathname.startsWith(href + "/");
                 return (
@@ -428,6 +430,16 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                                 >
                                     <User className="h-4 w-4" />
                                     إعدادات الحساب
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        router.push("/subscription");
+                                        setIsDropdownOpen(false);
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 rounded-md"
+                                >
+                                    <Crown className="h-4 w-4 text-amber-500" />
+                                    ترقية الاشتراك
                                 </button>
                             </div>
                         )}

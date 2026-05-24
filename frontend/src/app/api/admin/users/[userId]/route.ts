@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { userProfiles, users } from "@/db/schema";
 import { adminIp, requireAdmin, writeAdminLog } from "@/lib/admin";
+import { errorToResponse } from "@/lib/http-error";
 import { eq } from "drizzle-orm";
 
 const STATUSES = new Set(["active", "suspended"]);
@@ -82,7 +83,8 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    if (err instanceof Response) throw err;
+    const response = errorToResponse(err);
+    if (response) return response;
     console.error("PATCH /api/admin/users/[userId] error:", err);
     return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
   }

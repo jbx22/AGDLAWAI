@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { userProfiles } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { jsonHttpError } from "@/lib/http-error";
 
 export interface AuthUser {
   userId: string;
@@ -19,7 +20,7 @@ export interface AuthUser {
 export async function requireAuth(): Promise<AuthUser> {
   const session = await auth();
   if (!session?.user?.id) {
-    throw Response.json({ detail: "Unauthorized" }, { status: 401 });
+    throw jsonHttpError("Unauthorized", 401);
   }
   const [profile] = await db
     .select({ account_status: userProfiles.account_status })
@@ -28,7 +29,7 @@ export async function requireAuth(): Promise<AuthUser> {
     .limit(1);
 
   if (profile?.account_status === "suspended" || profile?.account_status === "deleted") {
-    throw Response.json({ detail: "Account is not active" }, { status: 403 });
+    throw jsonHttpError("Account is not active", 403);
   }
 
   return {

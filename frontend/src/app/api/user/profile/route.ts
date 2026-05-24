@@ -5,6 +5,7 @@ import { userProfiles, users } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { getTierPolicy } from "@/lib/billing/plans";
 import { envRoleForEmail } from "@/lib/admin";
+import { errorToResponse } from "@/lib/http-error";
 
 const DEFAULT_TABULAR_MODEL = "deepseek-v4-flash";
 
@@ -98,7 +99,8 @@ export async function GET(req: NextRequest) {
       apiKeyStatus: apiKeyStatus(),
     });
   } catch (err: any) {
-    if (err instanceof Response) throw err;
+    const response = errorToResponse(err);
+    if (response) return response;
     console.error("GET /api/user/profile error:", err);
     return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
   }
@@ -146,7 +148,8 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    if (err instanceof Response) throw err;
+    const response = errorToResponse(err);
+    if (response) return response;
     console.error("PATCH /api/user/profile error:", err);
     return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
   }

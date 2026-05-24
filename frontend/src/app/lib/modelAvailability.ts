@@ -36,6 +36,9 @@ export function isProviderAvailable(
     provider: ModelProvider,
     apiKeys: ApiKeyState,
 ): boolean {
+    // DeepSeek is always available (platform-owned key)
+    if (provider === "deepseek") return true;
+    // For OpenAI, Claude, Gemini: user must have configured their own key
     return !!apiKeys[provider]?.configured;
 }
 

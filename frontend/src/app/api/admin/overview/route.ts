@@ -11,6 +11,7 @@ import {
   users,
 } from "@/db/schema";
 import { requireAdmin } from "@/lib/admin";
+import { errorToResponse } from "@/lib/http-error";
 import { desc, eq, sql } from "drizzle-orm";
 
 const numberValue = (value: unknown) => Number(value ?? 0);
@@ -121,7 +122,8 @@ export async function GET() {
       auditLogs,
     });
   } catch (err) {
-    if (err instanceof Response) throw err;
+    const response = errorToResponse(err);
+    if (response) return response;
     console.error("GET /api/admin/overview error:", err);
     return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
   }
