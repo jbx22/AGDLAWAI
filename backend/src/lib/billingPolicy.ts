@@ -11,9 +11,9 @@ type TierPolicy = {
 
 const TIER_POLICIES: Record<string, TierPolicy> = {
     Free: { monthlyAiRequests: 0, deepseek: false, openai: false },
-    Professional: { monthlyAiRequests: 200, deepseek: true, openai: false },
-    Business: { monthlyAiRequests: 1000, deepseek: true, openai: true },
-    Enterprise: { monthlyAiRequests: 5000, deepseek: true, openai: true },
+    Professional: { monthlyAiRequests: 30, deepseek: true, openai: false },
+    Business: { monthlyAiRequests: 75, deepseek: true, openai: false },
+    Enterprise: { monthlyAiRequests: 300, deepseek: true, openai: false },
 };
 
 function policyForTier(tier: string | null | undefined): TierPolicy {
@@ -62,7 +62,7 @@ export async function assertAndConsumeAiCredit(
         return {
             ok: false,
             status: 402,
-            detail: "OpenAI models are available only on the SAR 299 Business subscription or higher.",
+            detail: "OpenAI models are not included in the current JBL subscription plans.",
         };
     }
 
@@ -70,7 +70,7 @@ export async function assertAndConsumeAiCredit(
         return {
             ok: false,
             status: 403,
-            detail: "This plan only supports DeepSeek V4 Flash and eligible OpenAI usage.",
+            detail: "This plan only supports DeepSeek V4 Flash.",
         };
     }
 

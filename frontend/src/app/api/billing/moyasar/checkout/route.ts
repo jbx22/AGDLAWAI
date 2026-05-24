@@ -24,17 +24,21 @@ function basicAuth(secretKey: string): string {
 export async function POST(req: NextRequest) {
     const secretKey = process.env.MOYASAR_SECRET_KEY?.trim();
     if (!secretKey) {
-        return NextResponse.redirect(new URL("/support?payment=moyasar_not_configured", req.url), 303);
+        return NextResponse.redirect(new URL("/subscription?payment=moyasar_not_configured", req.url), 303);
     }
 
     const form = await req.formData();
     const plan = getBillingPlan(String(form.get("plan") ?? ""));
     const locale = String(form.get("locale") ?? "ar") === "en" ? "en" : "ar";
     if (!plan) {
-        return NextResponse.redirect(new URL(locale === "en" ? "/en?payment=invalid_plan" : "/?payment=invalid_plan", req.url), 303);
+        return NextResponse.redirect(new URL("/subscription?payment=invalid_plan", req.url), 303);
     }
 
     const auth = await optionalAuth();
+    if (!auth) {
+        return NextResponse.redirect(new URL("/login?callbackUrl=/subscription", req.url), 303);
+    }
+
     const baseUrl = appUrl(req);
     const description = locale === "en" ? plan.descriptionEn : plan.descriptionAr;
 
@@ -48,27 +52,27 @@ export async function POST(req: NextRequest) {
             amount: plan.amountHalalas,
             currency: "SAR",
             description,
-            callback_url: `${baseUrl}/api/billing/moyasar/callback`,
-            success_url: `${baseUrl}${locale === "en" ? "/en" : "/"}?payment=success&plan=${plan.id}`,
-            back_url: `${baseUrl}${locale === "en" ? "/en" : "/"}#pricing`,
+            callback_url: `${baseUrl}/api/billing/moyasar/callback?plan_id=${encodeURIComponent(plan.id)}&user_id=${encodeURIComponent(auth.userId)}`,
+            success_url: `${baseUrl}/subscription?payment=success&plan=${plan.id}`,
+            back_url: `${baseUrl}/subscription`,
             metadata: {
                 plan_id: plan.id,
                 tier: plan.tier,
-                user_id: auth?.userId ?? "",
-                user_email: auth?.userEmail ?? "",
+                user_id: auth.userId,
+                user_email: auth.userEmail,
                 source: "jbl-biz-law",
             },
         }),
     });
 
     if (!response.ok) {
-        const errorUrl = new URL(locale === "en" ? "/en?payment=moyasar_error" : "/?payment=moyasar_error", req.url);
+        const errorUrl = new URL("/subscription?payment=moyasar_error", req.url);
         return NextResponse.redirect(errorUrl, 303);
     }
 
     const invoice = (await response.json()) as MoyasarInvoice;
     if (!invoice.url) {
-        return NextResponse.redirect(new URL(locale === "en" ? "/en?payment=moyasar_error" : "/?payment=moyasar_error", req.url), 303);
+        return NextResponse.redirect(new URL("/subscription?payment=moyasar_error", req.url), 303);
     }
 
     return NextResponse.redirect(invoice.url, 303);

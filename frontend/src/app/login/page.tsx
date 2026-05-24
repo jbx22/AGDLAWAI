@@ -8,19 +8,32 @@ import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { SiteLogo } from "@/components/site-logo";
 import { useAuth } from "@/contexts/AuthContext";
+
+const DEMO_USER_EMAIL = "demo@jblbizlaw.com";
+const DEMO_USER_PASSWORD = "DemoUser123!";
+
 export default function LoginPage() {
     const router = useRouter();
     const { isAuthenticated, authLoading } = useAuth();
+    const [callbackUrl, setCallbackUrl] = useState("/assistant");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!authLoading && isAuthenticated) {
-            router.replace("/assistant");
+        const params = new URLSearchParams(window.location.search);
+        const next = params.get("callbackUrl");
+        if (next && next.startsWith("/") && !next.startsWith("//")) {
+            setCallbackUrl(next);
         }
-    }, [authLoading, isAuthenticated, router]);
+    }, []);
+
+    useEffect(() => {
+        if (!authLoading && isAuthenticated) {
+            router.replace(callbackUrl);
+        }
+    }, [authLoading, isAuthenticated, router, callbackUrl]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -31,13 +44,19 @@ export default function LoginPage() {
             if (result?.error) {
                 setError("Invalid email or password");
             } else {
-                router.push("/assistant");
+                router.push(callbackUrl);
             }
         } catch {
             setError("An error occurred during login");
         } finally {
             setLoading(false);
         }
+    };
+
+    const useDemoAccount = () => {
+        setEmail(DEMO_USER_EMAIL);
+        setPassword(DEMO_USER_PASSWORD);
+        setError(null);
     };
 
     return (
@@ -115,6 +134,24 @@ export default function LoginPage() {
                             {loading ? "Logging in..." : "Log in"}
                         </Button>
                     </form>
+                </div>
+                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <div className="font-semibold">Demo user account</div>
+                            <div className="mt-1 font-mono text-xs">
+                                {DEMO_USER_EMAIL} / {DEMO_USER_PASSWORD}
+                            </div>
+                        </div>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="border-amber-300 bg-white text-amber-950 hover:bg-amber-100"
+                            onClick={useDemoAccount}
+                        >
+                            Use demo
+                        </Button>
+                    </div>
                 </div>
                 <p className="text-center text-xs text-gray-500 leading-relaxed px-2">
                     JBL BIZ LAW hosted on jblbizlaw.com is currently a demo service.

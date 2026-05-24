@@ -16,8 +16,7 @@ type MoyasarCallback = {
     };
 };
 
-export async function POST(req: NextRequest) {
-    const payload = (await req.json().catch(() => null)) as MoyasarCallback | null;
+async function applyPaidSubscription(payload: MoyasarCallback | null) {
     const plan = getBillingPlan(payload?.metadata?.plan_id);
     const userId = payload?.metadata?.user_id;
 
@@ -46,6 +45,33 @@ export async function POST(req: NextRequest) {
             metadata: payload,
         });
     }
+}
+
+export async function POST(req: NextRequest) {
+    const payload = (await req.json().catch(() => null)) as MoyasarCallback | null;
+    await applyPaidSubscription(payload);
 
     return NextResponse.json({ ok: true });
+}
+
+export async function GET(req: NextRequest) {
+    const status = req.nextUrl.searchParams.get("status") ?? undefined;
+    const planId = req.nextUrl.searchParams.get("plan_id") ?? undefined;
+    const userId = req.nextUrl.searchParams.get("user_id") ?? undefined;
+    const id = req.nextUrl.searchParams.get("id") ?? undefined;
+    const amount = Number(req.nextUrl.searchParams.get("amount") ?? 0) || undefined;
+    const currency = req.nextUrl.searchParams.get("currency") ?? undefined;
+
+    await applyPaidSubscription({
+        id,
+        status,
+        amount,
+        currency,
+        metadata: {
+            plan_id: planId,
+            user_id: userId,
+        },
+    });
+
+    return NextResponse.redirect(new URL(`/subscription?payment=${status === "paid" ? "success" : "pending"}`, req.url), 303);
 }

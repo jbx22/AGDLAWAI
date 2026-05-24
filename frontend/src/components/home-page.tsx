@@ -133,8 +133,8 @@ const plans = {
             id: "free",
             name: "الأساسي",
             price: "مجاني",
-            cadence: "للتصفح",
-            body: "لإنشاء حساب وتجربة الواجهة",
+            cadence: "للتجربة",
+            body: "لإنشاء حساب وتجربة المنصة",
             features: [
                 "لا يشمل استخدام الذكاء الاصطناعي",
                 "الترقية مطلوبة لاستخدام DeepSeek V4 Flash",
@@ -146,35 +146,35 @@ const plans = {
             name: "المهني",
             price: "99 ر.س",
             cadence: "شهريا",
-            body: "للمحامين والمستشارين",
+            body: "للمحترفين",
             features: [
                 "DeepSeek V4 Flash فقط",
-                "200 طلب ذكاء اصطناعي شهريا",
+                "30 طلب ذكاء اصطناعي شهريا",
                 "إنشاء ومراجعة عقود ونماذج ومستندات",
             ],
             featured: true,
         },
         {
             id: "business",
-            name: "الأعمال",
+            name: "الشركات الصغيرة",
             price: "299 ر.س",
             cadence: "شهريا",
             body: "للشركات والفرق الصغيرة",
             features: [
                 "DeepSeek V4 Flash فقط",
-                "1,000 طلب ذكاء اصطناعي شهريا",
+                "75 طلب ذكاء اصطناعي شهريا",
                 "مسارات عمل للشركات والعقود والضرائب",
             ],
         },
         {
             id: "enterprise",
-            name: "المؤسسي",
-            price: "حسب الاحتياج",
-            cadence: "اتفاق سنوي",
+            name: "الحسابات المخصصة",
+            price: "500 ر.س",
+            cadence: "شهريا",
             body: "للجهات ذات المتطلبات الخاصة",
             features: [
                 "DeepSeek V4 Flash فقط",
-                "5,000 طلب شهري مبدئيا",
+                "300 طلب ذكاء اصطناعي شهريا",
                 "حوكمة وتكاملات ودعم إعداد",
             ],
         },
@@ -184,8 +184,8 @@ const plans = {
             id: "free",
             name: "Basic",
             price: "Free",
-            cadence: "browse",
-            body: "For account setup and interface review",
+            cadence: "trial",
+            body: "For account setup and trial",
             features: [
                 "No AI model usage included",
                 "Upgrade required for DeepSeek V4 Flash",
@@ -200,32 +200,32 @@ const plans = {
             body: "For lawyers and consultants",
             features: [
                 "DeepSeek V4 Flash only",
-                "200 AI requests per month",
+                "30 AI requests per month",
                 "Generate and review contracts, forms, and documents",
             ],
             featured: true,
         },
         {
             id: "business",
-            name: "Business",
+            name: "Small Companies",
             price: "SAR 299",
             cadence: "monthly",
             body: "For companies and small teams",
             features: [
                 "DeepSeek V4 Flash only",
-                "1,000 AI requests per month",
+                "75 AI requests per month",
                 "Workflows for companies, contracts, and tax questions",
             ],
         },
         {
             id: "enterprise",
-            name: "Enterprise",
-            price: "Custom",
-            cadence: "annual agreement",
+            name: "Customized Accounts",
+            price: "SAR 500",
+            cadence: "monthly",
             body: "For specialized requirements",
             features: [
                 "DeepSeek V4 Flash only",
-                "5,000 monthly requests to start",
+                "300 AI requests per month",
                 "Governance, integrations, setup support",
             ],
         },
@@ -269,32 +269,17 @@ function SubscribeButton({
         );
     }
 
-    if (plan.id === "enterprise") {
-        return (
-            <Link
-                href={localizedPath(locale, "/contact")}
-                className="mt-7 inline-flex w-full items-center justify-center rounded-md border border-[#1a1a2e] px-4 py-3 text-sm font-bold text-[#1a1a2e] transition hover:bg-[#1a1a2e] hover:text-white"
-            >
-                {label}
-            </Link>
-        );
-    }
-
     return (
-        <form action="/api/billing/moyasar/checkout" method="post" className="mt-7">
-            <input type="hidden" name="plan" value={plan.id} />
-            <input type="hidden" name="locale" value={locale} />
-            <button
-                type="submit"
-                className={`inline-flex w-full items-center justify-center rounded-md px-4 py-3 text-sm font-bold transition ${
-                    plan.featured
-                        ? "bg-[#c9a84c] text-[#151827] hover:bg-[#d9ba65]"
-                        : "border border-[#1a1a2e] text-[#1a1a2e] hover:bg-[#1a1a2e] hover:text-white"
-                }`}
-            >
-                {label}
-            </button>
-        </form>
+        <Link
+            href={`/subscription?plan=${plan.id}`}
+            className={`mt-7 inline-flex w-full items-center justify-center rounded-md px-4 py-3 text-sm font-bold transition ${
+                plan.featured
+                    ? "bg-[#c9a84c] text-[#151827] hover:bg-[#d9ba65]"
+                    : "border border-[#1a1a2e] text-[#1a1a2e] hover:bg-[#1a1a2e] hover:text-white"
+            }`}
+        >
+            {label}
+        </Link>
     );
 }
 
@@ -466,9 +451,7 @@ export function HomePage({ locale = "ar" }: { locale?: Locale }) {
                                     label={
                                         plan.id === "free"
                                             ? (t.freeCta as string)
-                                            : plan.id === "enterprise"
-                                              ? (t.contact as string)
-                                              : (t.choose as string)
+                                            : (t.choose as string)
                                     }
                                 />
                             </article>

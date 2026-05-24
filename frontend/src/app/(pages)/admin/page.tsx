@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import {
     Activity,
     BadgeDollarSign,
@@ -12,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Role = "user" | "admin" | "super_admin";
 type AccountStatus = "active" | "suspended" | "deleted";
@@ -105,16 +108,27 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
         },
     });
     if (!response.ok) {
-        const detail = await response.text();
-        throw new Error(detail || `Request failed: ${response.status}`);
+        let detail = `Request failed: ${response.status}`;
+        try {
+            const body = await response.clone().json();
+            detail = body?.detail || detail;
+        } catch {
+            detail = (await response.text()) || detail;
+        }
+        const error = new Error(detail) as Error & { status?: number };
+        error.status = response.status;
+        throw error;
     }
     return response.json() as Promise<T>;
 }
 
 export default function AdminPage() {
+    const router = useRouter();
+    const pathname = usePathname();
     const [overview, setOverview] = useState<AdminOverview | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [accessDenied, setAccessDenied] = useState(false);
     const [saving, setSaving] = useState(false);
     const [newAdmin, setNewAdmin] = useState({
         email: "",
@@ -124,12 +138,23 @@ export default function AdminPage() {
     });
 
     const isSuperAdmin = overview?.principal.role === "super_admin";
+    const isSuperAdminPage = pathname === "/super-admin";
+    const { user } = useAuth();
 
     const loadOverview = async () => {
         setError(null);
+        setAccessDenied(false);
         try {
             setOverview(await api<AdminOverview>("/api/admin/overview"));
         } catch (err) {
+            if (err instanceof Error && "status" in err && err.status === 401) {
+                router.replace("/login?callbackUrl=/admin");
+                return;
+            }
+            if (err instanceof Error && "status" in err && err.status === 403) {
+                setAccessDenied(true);
+                return;
+            }
             setError(err instanceof Error ? err.message : "Failed to load admin console");
         } finally {
             setLoading(false);
@@ -138,6 +163,7 @@ export default function AdminPage() {
 
     useEffect(() => {
         loadOverview();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const totalRevenue = useMemo(
@@ -230,6 +256,38 @@ export default function AdminPage() {
         );
     }
 
+    if (accessDenied) {
+        return (
+            <div className="flex h-full items-center justify-center bg-gray-50 p-6">
+                <div className="w-full max-w-lg rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+                    <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-md bg-red-50 text-red-600">
+                        <Lock className="h-5 w-5" />
+                    </div>
+                    <h1 className="text-2xl font-semibold text-gray-950">Admin access required</h1>
+                    <p className="mt-3 text-sm leading-6 text-gray-600">
+                        You are signed in as {user?.email || "a non-admin account"}. This account is not an admin or super admin, so the admin pages cannot open with it.
+                    </p>
+                    <div className="mt-5 rounded-md bg-gray-50 p-3 text-sm text-gray-700">
+                        Use the super admin account:
+                        <div className="mt-1 font-mono text-xs text-gray-950">superadmin@jblbizlaw.com</div>
+                    </div>
+                    <div className="mt-6 flex flex-wrap gap-3">
+                        <Button
+                            type="button"
+                            className="bg-black text-white hover:bg-gray-900"
+                            onClick={() => signOut({ callbackUrl: "/login?callbackUrl=/admin" })}
+                        >
+                            Sign out and log in as admin
+                        </Button>
+                        <Button type="button" variant="outline" onClick={loadOverview}>
+                            Try again
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     if (!overview) return null;
 
     return (
@@ -239,16 +297,30 @@ export default function AdminPage() {
                     <div>
                         <div className="flex items-center gap-2 text-sm font-medium text-gray-500">
                             <ShieldCheck className="h-4 w-4" />
-                            JBL Admin Console
+                            {isSuperAdminPage ? "JBL Super Admin Console" : "JBL Admin Console"}
                         </div>
                         <h1 className="mt-2 text-3xl font-semibold text-gray-950">
-                            Operations, users, subscriptions, and admin governance
+                            {isSuperAdminPage
+                                ? "Super admin controls, account governance, and audit log"
+                                : "Operations, users, subscriptions, and admin dashboard"}
                         </h1>
                     </div>
                     <div className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
                         {overview.principal.email} · {overview.principal.role.replace("_", " ")}
                     </div>
                 </div>
+
+                {isSuperAdmin && (
+                    <div className="mb-5 flex justify-end">
+                        <Button
+                            type="button"
+                            onClick={() => router.push(isSuperAdminPage ? "/admin" : "/super-admin")}
+                            className="bg-black text-white hover:bg-gray-900"
+                        >
+                            {isSuperAdminPage ? "Open admin page" : "Open super admin page"}
+                        </Button>
+                    </div>
+                )}
 
                 {error && (
                     <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">

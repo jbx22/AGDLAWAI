@@ -1,3 +1,16 @@
+CREATE TABLE "admin_audit_logs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"actor_user_id" uuid,
+	"actor_email" text,
+	"action" text NOT NULL,
+	"entity_type" text NOT NULL,
+	"entity_id" text,
+	"target_user_id" uuid,
+	"metadata" jsonb DEFAULT '{}' NOT NULL,
+	"ip_address" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "chat_messages" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"chat_id" uuid NOT NULL,
@@ -88,6 +101,24 @@ CREATE TABLE "projects" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "subscriptions" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" uuid NOT NULL,
+	"provider" text DEFAULT 'moyasar' NOT NULL,
+	"provider_invoice_id" text,
+	"plan_id" text NOT NULL,
+	"tier" text NOT NULL,
+	"status" text DEFAULT 'pending' NOT NULL,
+	"amount_cents" integer DEFAULT 0 NOT NULL,
+	"currency" text DEFAULT 'SAR' NOT NULL,
+	"started_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"current_period_end" timestamp with time zone,
+	"canceled_at" timestamp with time zone,
+	"metadata" jsonb DEFAULT '{}' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "tabular_cells" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"review_id" uuid NOT NULL,
@@ -148,9 +179,12 @@ CREATE TABLE "user_profiles" (
 	"display_name" text,
 	"organisation" text,
 	"tier" text DEFAULT 'Free' NOT NULL,
+	"role" text DEFAULT 'user' NOT NULL,
+	"account_status" text DEFAULT 'active' NOT NULL,
+	"suspension_reason" text,
 	"message_credits_used" integer DEFAULT 0 NOT NULL,
 	"credits_reset_date" timestamp with time zone DEFAULT now() NOT NULL,
-	"tabular_model" text DEFAULT 'gemini-3-flash-preview' NOT NULL,
+	"tabular_model" text DEFAULT 'deepseek-v4-flash' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "user_profiles_user_id_unique" UNIQUE("user_id")
@@ -188,6 +222,8 @@ CREATE TABLE "workflows" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "admin_audit_logs" ADD CONSTRAINT "admin_audit_logs_actor_user_id_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "admin_audit_logs" ADD CONSTRAINT "admin_audit_logs_target_user_id_users_id_fk" FOREIGN KEY ("target_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_messages" ADD CONSTRAINT "chat_messages_chat_id_chats_id_fk" FOREIGN KEY ("chat_id") REFERENCES "public"."chats"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chats" ADD CONSTRAINT "chats_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "document_edits" ADD CONSTRAINT "document_edits_document_id_documents_id_fk" FOREIGN KEY ("document_id") REFERENCES "public"."documents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -197,6 +233,7 @@ ALTER TABLE "documents" ADD CONSTRAINT "documents_project_id_projects_id_fk" FOR
 ALTER TABLE "documents" ADD CONSTRAINT "documents_folder_id_project_subfolders_id_fk" FOREIGN KEY ("folder_id") REFERENCES "public"."project_subfolders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_subfolders" ADD CONSTRAINT "project_subfolders_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_subfolders" ADD CONSTRAINT "project_subfolders_parent_folder_id_fkey" FOREIGN KEY ("parent_folder_id") REFERENCES "public"."project_subfolders"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tabular_cells" ADD CONSTRAINT "tabular_cells_review_id_tabular_reviews_id_fk" FOREIGN KEY ("review_id") REFERENCES "public"."tabular_reviews"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tabular_cells" ADD CONSTRAINT "tabular_cells_document_id_documents_id_fk" FOREIGN KEY ("document_id") REFERENCES "public"."documents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tabular_review_chat_messages" ADD CONSTRAINT "tabular_review_chat_messages_chat_id_tabular_review_chats_id_fk" FOREIGN KEY ("chat_id") REFERENCES "public"."tabular_review_chats"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -206,6 +243,9 @@ ALTER TABLE "tabular_reviews" ADD CONSTRAINT "tabular_reviews_workflow_id_workfl
 ALTER TABLE "user_api_keys" ADD CONSTRAINT "user_api_keys_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_profiles" ADD CONSTRAINT "user_profiles_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_shares" ADD CONSTRAINT "workflow_shares_workflow_id_workflows_id_fk" FOREIGN KEY ("workflow_id") REFERENCES "public"."workflows"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "admin_audit_actor_idx" ON "admin_audit_logs" USING btree ("actor_user_id","created_at");--> statement-breakpoint
+CREATE INDEX "admin_audit_target_idx" ON "admin_audit_logs" USING btree ("target_user_id","created_at");--> statement-breakpoint
+CREATE INDEX "admin_audit_entity_idx" ON "admin_audit_logs" USING btree ("entity_type","entity_id");--> statement-breakpoint
 CREATE INDEX "idx_chat_messages_chat" ON "chat_messages" USING btree ("chat_id");--> statement-breakpoint
 CREATE INDEX "idx_chats_user" ON "chats" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "idx_chats_project" ON "chats" USING btree ("project_id");--> statement-breakpoint
@@ -221,6 +261,8 @@ CREATE UNIQUE INDEX "hidden_workflows_user_workflow_unique" ON "hidden_workflows
 CREATE INDEX "idx_project_subfolders_project" ON "project_subfolders" USING btree ("project_id");--> statement-breakpoint
 CREATE INDEX "idx_projects_user" ON "projects" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "projects_shared_with_idx" ON "projects" USING gin ("shared_with");--> statement-breakpoint
+CREATE INDEX "subscriptions_user_idx" ON "subscriptions" USING btree ("user_id","status");--> statement-breakpoint
+CREATE INDEX "subscriptions_provider_invoice_idx" ON "subscriptions" USING btree ("provider","provider_invoice_id");--> statement-breakpoint
 CREATE INDEX "idx_tabular_cells_review" ON "tabular_cells" USING btree ("review_id","document_id","column_index");--> statement-breakpoint
 CREATE INDEX "tabular_review_chat_messages_chat_idx" ON "tabular_review_chat_messages" USING btree ("chat_id","created_at");--> statement-breakpoint
 CREATE INDEX "tabular_review_chats_review_idx" ON "tabular_review_chats" USING btree ("review_id","updated_at");--> statement-breakpoint
@@ -234,6 +276,4 @@ CREATE INDEX "idx_user_profiles_user" ON "user_profiles" USING btree ("user_id")
 CREATE INDEX "workflow_shares_workflow_id_idx" ON "workflow_shares" USING btree ("workflow_id");--> statement-breakpoint
 CREATE INDEX "workflow_shares_email_idx" ON "workflow_shares" USING btree ("shared_with_email");--> statement-breakpoint
 CREATE UNIQUE INDEX "workflow_shares_workflow_email_unique" ON "workflow_shares" USING btree ("workflow_id","shared_with_email");--> statement-breakpoint
-CREATE INDEX "idx_workflows_user" ON "workflows" USING btree ("user_id");--> statement-breakpoint
-ALTER TABLE "documents" ADD CONSTRAINT "documents_current_version_id_fkey" FOREIGN KEY ("current_version_id") REFERENCES "public"."document_versions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "document_edits" ADD CONSTRAINT "document_edits_chat_message_id_fkey" FOREIGN KEY ("chat_message_id") REFERENCES "public"."chat_messages"("id") ON DELETE no action ON UPDATE no action;
+CREATE INDEX "idx_workflows_user" ON "workflows" USING btree ("user_id");

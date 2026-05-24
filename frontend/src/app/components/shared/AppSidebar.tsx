@@ -31,6 +31,7 @@ const NAV_ITEMS = [
 ];
 
 const ADMIN_NAV_ITEM = { href: "/admin", label: "Admin", icon: ShieldCheck };
+const SUPER_ADMIN_NAV_ITEM = { href: "/super-admin", label: "Super Admin", icon: ShieldCheck };
 const SUBSCRIPTION_NAV_ITEM = { href: "/subscription", label: "الاشتراك", icon: Crown };
 
 interface AppSidebarProps {
@@ -124,13 +125,15 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
     };
 
     const getDisplayName = () => {
-        if (!profile) return "";
-        return profile.displayName || user?.email?.split("@")[0] || "";
+        if (profile?.displayName) return profile.displayName;
+        if (profile?.role === "super_admin") return "Super admin";
+        if (profile?.role === "admin") return "Admin";
+        return "Account";
     };
 
     const getUserTier = () => {
         if (!profile) return "";
-        return profile.tier || "مجاني";
+        return profile.tier || "Free";
     };
 
     if (!user) return null;
@@ -170,7 +173,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
             </div>
 
             {/* Nav items */}
-            {[...NAV_ITEMS, SUBSCRIPTION_NAV_ITEM, ...(profile?.role === "admin" || profile?.role === "super_admin" ? [ADMIN_NAV_ITEM] : [])].map(({ href, label, icon: Icon }) => {
+            {[...NAV_ITEMS, SUBSCRIPTION_NAV_ITEM, ...(profile?.role === "super_admin" ? [ADMIN_NAV_ITEM, SUPER_ADMIN_NAV_ITEM] : profile?.role === "admin" ? [ADMIN_NAV_ITEM] : [])].map(({ href, label, icon: Icon }) => {
                 const isActive =
                     pathname === href || pathname.startsWith(href + "/");
                 return (
@@ -395,7 +398,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                                     ? "bg-gray-100"
                                     : "hover:bg-gray-100"
                             }`}
-                            title={!isOpen ? user.email : undefined}
+                            title={!isOpen ? "Account" : undefined}
                         >
                             <div className="h-7 w-7 flex-shrink-0 rounded-full bg-gray-700 flex items-center justify-center text-white text-sm font-medium font-serif">
                                 {getUserInitials(user.email)}

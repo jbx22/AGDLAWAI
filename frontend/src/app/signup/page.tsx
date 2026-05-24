@@ -8,10 +8,12 @@ import Link from "next/link";
 import { SiteLogo } from "@/components/site-logo";
 import { CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { signIn } from "next-auth/react";
 
 export default function SignupPage() {
     const router = useRouter();
     const { isAuthenticated, authLoading } = useAuth();
+    const [callbackUrl, setCallbackUrl] = useState("/assistant");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -22,10 +24,18 @@ export default function SignupPage() {
     const [success, setSuccess] = useState(false);
 
     useEffect(() => {
-        if (!authLoading && isAuthenticated && !success) {
-            router.replace("/assistant");
+        const params = new URLSearchParams(window.location.search);
+        const next = params.get("callbackUrl");
+        if (next && next.startsWith("/") && !next.startsWith("//")) {
+            setCallbackUrl(next);
         }
-    }, [authLoading, isAuthenticated, router, success]);
+    }, []);
+
+    useEffect(() => {
+        if (!authLoading && isAuthenticated && !success) {
+            router.replace(callbackUrl);
+        }
+    }, [authLoading, isAuthenticated, router, success, callbackUrl]);
 
     const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -64,8 +74,9 @@ export default function SignupPage() {
             }
 
             setSuccess(true);
+            await signIn("credentials", { email, password, redirect: false });
             setTimeout(() => {
-                router.push("/assistant");
+                router.push(callbackUrl);
             }, 2000);
         } catch (error: unknown) {
             setError(
