@@ -1,5 +1,6 @@
 import { MODELS, type ModelOption } from "../components/assistant/ModelToggle";
 import type { ApiKeyState } from "@/app/lib/mikeApi";
+import { getTierPolicy } from "@/lib/billing/plans";
 
 export type ModelProvider = "claude" | "gemini" | "openai" | "deepseek";
 
@@ -12,10 +13,23 @@ export function getModelProvider(modelId: string): ModelProvider | null {
 export function isModelAvailable(
     modelId: string,
     apiKeys: ApiKeyState,
+    tier?: string | null,
 ): boolean {
     const provider = getModelProvider(modelId);
     if (!provider) return false;
+    if (!isModelAllowedForTier(modelId, tier)) return false;
     return isProviderAvailable(provider, apiKeys);
+}
+
+export function isModelAllowedForTier(
+    modelId: string,
+    tier: string | null | undefined,
+): boolean {
+    const provider = getModelProvider(modelId);
+    const policy = getTierPolicy(tier);
+    if (provider === "deepseek") return policy.deepseek;
+    if (provider === "openai") return policy.openai;
+    return false;
 }
 
 export function isProviderAvailable(

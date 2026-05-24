@@ -1,6 +1,7 @@
 import { streamClaude, completeClaudeText } from "./claude";
 import { streamGemini, completeGeminiText } from "./gemini";
 import { streamOpenAI, completeOpenAIText } from "./openai";
+import { streamDeepSeek, completeDeepSeekText } from "./deepseek";
 import { providerForModel } from "./models";
 import type { StreamChatParams, StreamChatResult, UserApiKeys } from "./types";
 
@@ -11,6 +12,7 @@ export async function streamChatWithTools(
     params: StreamChatParams,
 ): Promise<StreamChatResult> {
     const provider = providerForModel(params.model);
+    if (provider === "deepseek") return streamDeepSeek(params);
     if (provider === "claude") return streamClaude(params);
     if (provider === "openai") return streamOpenAI(params);
     return streamGemini(params);
@@ -24,6 +26,7 @@ export async function completeText(params: {
     apiKeys?: UserApiKeys;
 }): Promise<string> {
     const provider = providerForModel(params.model);
+    if (provider === "deepseek") return completeDeepSeekText(params);
     if (provider === "claude") return completeClaudeText(params);
     if (provider === "openai") return completeOpenAIText(params);
     return completeGeminiText(params);

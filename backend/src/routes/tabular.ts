@@ -24,6 +24,7 @@ import {
     filterAccessibleDocumentIds,
     listAccessibleProjectIds,
 } from "../lib/access";
+import { assertAndConsumeAiCredit } from "../lib/billingPolicy";
 
 function formatPromptSuffix(format?: string, tags?: string[]): string {
     switch (format) {
@@ -55,6 +56,7 @@ export const tabularRouter = Router();
 function providerLabel(provider: Provider): string {
     if (provider === "claude") return "Anthropic";
     if (provider === "openai") return "OpenAI";
+    if (provider === "deepseek") return "DeepSeek";
     return "Gemini";
 }
 
@@ -311,6 +313,10 @@ tabularRouter.post("/prompt", requireAuth, async (req, res) => {
 
     try {
         const { title_model, api_keys } = await getUserModelSettings(userId);
+        const aiAccess = await assertAndConsumeAiCredit(userId, title_model, createServerSupabase());
+        if (!aiAccess.ok) {
+            return void res.status(aiAccess.status).json({ detail: aiAccess.detail });
+        }
         const raw = await completeText({
             model: title_model,
             systemPrompt:
@@ -755,6 +761,10 @@ tabularRouter.post(
             userId,
             db,
         );
+        const aiAccess = await assertAndConsumeAiCredit(userId, tabular_model, db);
+        if (!aiAccess.ok) {
+            return void res.status(aiAccess.status).json({ detail: aiAccess.detail });
+        }
         const missingKey = missingModelApiKey(tabular_model, api_keys);
         if (missingKey) {
             return void res.status(422).json({
@@ -880,6 +890,10 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
     }
 
     const { tabular_model, api_keys } = await getUserModelSettings(userId, db);
+    const aiAccess = await assertAndConsumeAiCredit(userId, tabular_model, db);
+    if (!aiAccess.ok) {
+        return void res.status(aiAccess.status).json({ detail: aiAccess.detail });
+    }
     const missingKey = missingModelApiKey(tabular_model, api_keys);
     if (missingKey) {
         return void res.status(422).json({
@@ -1279,6 +1293,10 @@ tabularRouter.post("/:reviewId/chat", requireAuth, async (req, res) => {
     };
 
     const { tabular_model, api_keys } = await getUserModelSettings(userId, db);
+    const aiAccess = await assertAndConsumeAiCredit(userId, tabular_model, db);
+    if (!aiAccess.ok) {
+        return void res.status(aiAccess.status).json({ detail: aiAccess.detail });
+    }
     const missingKey = missingModelApiKey(tabular_model, api_keys);
     if (missingKey) {
         return void res.status(422).json({

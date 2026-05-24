@@ -221,7 +221,7 @@ export function TRView({ reviewId, projectId }: Props) {
     }
 
     async function handleRegenerateCell(docId: string, colIndex: number) {
-        if (apiKeys && !isModelAvailable(tabularModel, apiKeys)) {
+        if (apiKeys && !isModelAvailable(tabularModel, apiKeys, profile?.tier)) {
             setApiKeyModalProvider(getModelProvider(tabularModel));
             return;
         }
@@ -277,7 +277,7 @@ export function TRView({ reviewId, projectId }: Props) {
         // If columns changed since last save, update the review first
         if (columns.length === 0) return;
 
-        if (apiKeys && !isModelAvailable(tabularModel, apiKeys)) {
+        if (apiKeys && !isModelAvailable(tabularModel, apiKeys, profile?.tier)) {
             setApiKeyModalProvider(getModelProvider(tabularModel));
             return;
         }

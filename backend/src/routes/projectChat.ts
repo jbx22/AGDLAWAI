@@ -13,6 +13,8 @@ import {
 } from "../lib/chatTools";
 import { getUserApiKeys } from "../lib/userSettings";
 import { checkProjectAccess } from "../lib/access";
+import { DEFAULT_MAIN_MODEL, resolveModel } from "../lib/llm";
+import { assertAndConsumeAiCredit } from "../lib/billingPolicy";
 
 const PROJECT_SYSTEM_PROMPT_EXTRA = `PROJECT CONTEXT:
 You are operating within a project folder that contains a collection of legal documents the user has organised for a single matter. The user's questions will usually refer to one or more documents in this project — your job is to find the relevant files to work on. Use list_documents to see what is available and fetch_documents / read_document to pull in any documents you need before answering.
@@ -39,6 +41,11 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
         };
 
     const db = createServerSupabase();
+    const selectedModel = resolveModel(model, DEFAULT_MAIN_MODEL);
+    const aiAccess = await assertAndConsumeAiCredit(userId, selectedModel, db);
+    if (!aiAccess.ok) {
+        return void res.status(aiAccess.status).json({ detail: aiAccess.detail });
+    }
 
     // Verify the user has access to the project (owner or shared member).
     const projectAccess = await checkProjectAccess(
@@ -166,7 +173,7 @@ projectChatRouter.post("/", requireAuth, async (req, res) => {
             write,
             extraTools: PROJECT_EXTRA_TOOLS,
             workflowStore,
-            model,
+            model: selectedModel,
             apiKeys,
             projectId,
         });

@@ -35,6 +35,9 @@ const ALL_MODELS = new Set<string>([
     ...DEEPSEEK_MAIN_MODELS,
     ...DEEPSEEK_MID_MODELS,
     ...DEEPSEEK_LOW_MODELS,
+    ...OPENAI_MAIN_MODELS,
+    ...OPENAI_MID_MODELS,
+    ...OPENAI_LOW_MODELS,
 ]);
 
 // ---------------------------------------------------------------------------

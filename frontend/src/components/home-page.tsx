@@ -4,110 +4,6 @@ import { SiteLogo } from "@/components/site-logo";
 
 type Locale = "ar" | "en";
 
-const content = {
-    ar: {
-        dir: "rtl",
-        homeHref: "/",
-        otherHref: "/en",
-        otherLabel: "English",
-        otherFlag: "🇺🇸",
-        open: "افتح المنصة",
-        nav: ["الهوية", "الرسالة والرؤية", "الأهداف", "الاشتراكات"],
-        badge: "منصة قانونية وتجارية عربية أولا",
-        title: "ذكاء قانوني عملي للمستندات، العقود، وقرارات الأعمال.",
-        intro:
-            "JBL BIZ LAW يساعد الفرق المهنية على فهم المستندات بسرعة، استخراج البنود المهمة، بناء مراجعات منظمة، ومشاركة النتائج بلغة عربية واضحة.",
-        signup: "إنشاء حساب",
-        login: "تسجيل الدخول",
-        identityKicker: "هوية الموقع",
-        identityTitle: "علامة مهنية هادئة، واضحة، ومبنية على الثقة.",
-        pillars: [
-            ["هوية المنصة", "منصة عربية للذكاء القانوني والتجاري، مصممة للمحامين والإدارات القانونية ورواد الأعمال."],
-            ["وعد العلامة", "تحويل المستندات المعقدة إلى قرارات عملية قابلة للتنفيذ مع بقاء الحكم النهائي للمختص."],
-            ["أسلوب العمل", "دقة، وضوح، قابلية تتبع، وتجربة عربية تراعي لغة القانون وسياق الأعمال في المنطقة."],
-        ],
-        missionTitle: "الرسالة",
-        mission:
-            "تمكين المهنيين من قراءة العقود والمستندات وتحليلها بسرعة أكبر، عبر أدوات ذكاء اصطناعي تساعد في التلخيص والمقارنة واكتشاف المخاطر دون استبدال الخبرة البشرية.",
-        visionTitle: "الرؤية",
-        vision:
-            "أن تكون JBL BIZ LAW المنصة العربية المرجعية للعمل القانوني والتجاري المدعوم بالذكاء الاصطناعي.",
-        goalsTitle: "الأهداف",
-        goals: [
-            "تقليل وقت مراجعة العقود والمستندات المتكررة.",
-            "توحيد منهجية التحليل داخل الفرق القانونية والتجارية.",
-            "رفع جودة التقارير القانونية قبل الاجتماعات أو التفاوض.",
-            "إتاحة أدوات ذكاء اصطناعي مهنية باللغة العربية من اليوم الأول.",
-        ],
-        pricingTitle: "باقات الاشتراك",
-        pricingIntro:
-            "تسعير تدريجي يناسب التجربة، الفرد، الفريق، والمؤسسة مع الدفع عبر Moyasar بالريال السعودي.",
-        choose: "اشترك الآن",
-        freeCta: "ابدأ مجانا",
-        contact: "تواصل معنا",
-        finalTitle: "ابدأ بمستند واحد، ثم ابن سير عمل كامل لفريقك.",
-        finalCta: "الدخول إلى المساعد",
-    },
-    en: {
-        dir: "ltr",
-        homeHref: "/en",
-        otherHref: "/",
-        otherLabel: "العربية",
-        otherFlag: "🇸🇦",
-        open: "Open app",
-        nav: ["Identity", "Mission & vision", "Goals", "Pricing"],
-        badge: "Arabic-first legal and business AI",
-        title: "Practical legal intelligence for documents, contracts, and business decisions.",
-        intro:
-            "JBL BIZ LAW helps professional teams understand documents faster, extract key clauses, build structured reviews, and share results with clear legal context.",
-        signup: "Create account",
-        login: "Log in",
-        identityKicker: "Website identity",
-        identityTitle: "A calm, clear, trust-led professional brand.",
-        pillars: [
-            ["Platform identity", "An Arabic-first legal and business AI platform for lawyers, legal departments, and entrepreneurs."],
-            ["Brand promise", "Turn complex documents into actionable decisions while keeping final judgment with the professional."],
-            ["Working style", "Accuracy, clarity, traceability, and a regional legal-business experience from day one."],
-        ],
-        missionTitle: "Mission",
-        mission:
-            "Enable professionals to review contracts and documents faster through AI tools that summarize, compare, and surface risks without replacing human expertise.",
-        visionTitle: "Vision",
-        vision:
-            "To become the reference Arabic platform for AI-supported legal and business work.",
-        goalsTitle: "Goals",
-        goals: [
-            "Reduce time spent on repeated contract and document reviews.",
-            "Standardize analysis across legal and business teams.",
-            "Improve report quality before meetings and negotiations.",
-            "Provide professional Arabic-first AI tools from the first day.",
-        ],
-        pricingTitle: "Subscription tiers",
-        pricingIntro:
-            "Graduated SaaS pricing for trial, individual, team, and enterprise use with Moyasar payments in SAR.",
-        choose: "Subscribe now",
-        freeCta: "Start free",
-        contact: "Contact us",
-        finalTitle: "Start with one document, then build a complete workflow for your team.",
-        finalCta: "Go to assistant",
-    },
-} satisfies Record<Locale, Record<string, unknown>>;
-
-const plans = {
-    ar: [
-        { id: "free", name: "الأساسي", price: "مجاني", cadence: "للبداية", body: "للتجربة المهنية الخفيفة", features: ["مساعد قانوني وتجاري أساسي", "مشاريع محدودة", "نماذج سير عمل جاهزة"] },
-        { id: "professional", name: "المهني", price: "99 ر.س", cadence: "شهريا", body: "للمحامين والمستشارين", features: ["مراجعات مستندات أكثر", "تحليل عقود وجداول مقارنة", "أولوية في المعالجة"], featured: true },
-        { id: "business", name: "الأعمال", price: "299 ر.س", cadence: "شهريا", body: "للشركات والفرق الصغيرة", features: ["مساحات عمل مشتركة", "صلاحيات أعضاء الفريق", "تقارير ملخصة للإدارة"] },
-        { id: "enterprise", name: "المؤسسي", price: "حسب الاحتياج", cadence: "اتفاق سنوي", body: "للجهات ذات المتطلبات الخاصة", features: ["حوكمة وأمن متقدم", "تكاملات مخصصة", "دعم إعداد وتدريب"] },
-    ],
-    en: [
-        { id: "free", name: "Basic", price: "Free", cadence: "starter", body: "For light professional trials", features: ["Core legal-business assistant", "Limited projects", "Ready workflow templates"] },
-        { id: "professional", name: "Professional", price: "SAR 99", cadence: "monthly", body: "For lawyers and consultants", features: ["More document reviews", "Contract and comparison analysis", "Priority processing"], featured: true },
-        { id: "business", name: "Business", price: "SAR 299", cadence: "monthly", body: "For companies and small teams", features: ["Shared workspaces", "Team permissions", "Management summaries"] },
-        { id: "enterprise", name: "Enterprise", price: "Custom", cadence: "annual agreement", body: "For specialized requirements", features: ["Advanced governance and security", "Custom integrations", "Setup and training support"] },
-    ],
-} satisfies Record<Locale, Plan[]>;
-
 type Plan = {
     id: string;
     name: string;
@@ -117,6 +13,108 @@ type Plan = {
     features: string[];
     featured?: boolean;
 };
+
+const content = {
+    ar: {
+        dir: "rtl",
+        otherHref: "/en",
+        otherLabel: "English",
+        otherFlag: "🇺🇸",
+        open: "افتح المنصة",
+        nav: ["الهوية", "الرسالة والرؤية", "الأهداف", "الاشتراكات"],
+        badge: "منصة ذكاء قانوني وتجاري للعقود والشركات",
+        title: "ذكاء قانوني عملي للعقود، مستندات الشركات، وقرارات الأعمال.",
+        intro:
+            "JBL BIZ LAW يساعد الفرق المهنية على فهم العقود والمستندات بسرعة، استخراج البنود المهمة، بناء مراجعات منظمة، ومشاركة النتائج في سياق قانوني واضح.",
+        signup: "إنشاء حساب",
+        login: "تسجيل الدخول",
+        identityKicker: "هوية الموقع",
+        identityTitle: "علامة مهنية واضحة مبنية على الثقة والدقة القانونية.",
+        pillars: [
+            ["هوية المنصة", "منصة ذكاء قانوني وتجاري للمحامين والإدارات القانونية ورواد الأعمال الذين يتعاملون مع العقود وقوانين الشركات."],
+            ["نطاق الخدمات", "الخدمات الحالية مبنية على قوانين الولايات المتحدة والقوانين الأوروبية للعقود والشركات. القانون السعودي سيتم إضافته لاحقا."],
+            ["أسلوب العمل", "تحليل قابل للتتبع، ملخصات عملية، ومخرجات تساعد المختص ولا تستبدل الحكم القانوني البشري."],
+        ],
+        missionTitle: "الرسالة",
+        mission:
+            "تمكين المهنيين من مراجعة العقود ومستندات الشركات وتحليلها بسرعة أكبر وفق أطر الولايات المتحدة والاتحاد الأوروبي والقوانين الأوروبية ذات الصلة، مع توضيح المخاطر والالتزامات دون استبدال الخبرة القانونية البشرية. سيتم دعم القانون السعودي في مرحلة لاحقة.",
+        visionTitle: "الرؤية",
+        vision:
+            "أن تصبح JBL BIZ LAW منصة مرجعية للعمل القانوني والتجاري المدعوم بالذكاء الاصطناعي للعقود وقوانين الشركات في الولايات المتحدة وأوروبا، ثم التوسع لاحقا لدعم القانون السعودي.",
+        goalsTitle: "الأهداف",
+        goals: [
+            "تقليل وقت مراجعة العقود والمستندات المتكررة.",
+            "توحيد منهجية التحليل داخل الفرق القانونية والتجارية.",
+            "تحسين جودة تقارير المخاطر قبل الاجتماعات أو التفاوض.",
+            "تقديم أدوات ذكاء اصطناعي مهنية مع حدود استخدام واضحة لكل باقة.",
+        ],
+        pricingTitle: "باقات الاشتراك",
+        pricingIntro:
+            "استخدام الذكاء الاصطناعي متاح للعضويات المدفوعة فقط. DeepSeek V4 Flash متاح من الباقة المهنية، ونماذج OpenAI متاحة من باقة الأعمال 299 ر.س فأعلى.",
+        choose: "اشترك الآن",
+        freeCta: "إنشاء حساب",
+        contact: "تواصل معنا",
+        finalTitle: "ابدأ بمستند واحد، ثم ابن سير عمل كامل لفريقك.",
+        finalCta: "الدخول إلى المساعد",
+    },
+    en: {
+        dir: "ltr",
+        otherHref: "/",
+        otherLabel: "العربية",
+        otherFlag: "🇸🇦",
+        open: "Open app",
+        nav: ["Identity", "Mission & vision", "Goals", "Pricing"],
+        badge: "Legal and business AI for contracts and company law",
+        title: "Practical legal intelligence for contracts, company documents, and business decisions.",
+        intro:
+            "JBL BIZ LAW helps professional teams understand documents faster, extract key clauses, build structured reviews, and share results with clear legal context.",
+        signup: "Create account",
+        login: "Log in",
+        identityKicker: "Website identity",
+        identityTitle: "A clear professional brand built on trust and legal precision.",
+        pillars: [
+            ["Platform identity", "A legal and business AI platform for lawyers, legal departments, and entrepreneurs working with contracts and company law."],
+            ["Service scope", "Current services are based on United States and European laws for contracts and company law. Saudi law will be added later."],
+            ["Working style", "Traceable analysis, practical summaries, and outputs that assist professionals without replacing human legal judgment."],
+        ],
+        missionTitle: "Mission",
+        mission:
+            "Enable professionals to review and analyze contracts and company documents faster under United States, European Union, and relevant European legal frameworks, while surfacing risks and obligations without replacing human legal expertise. Saudi law support will be added later.",
+        visionTitle: "Vision",
+        vision:
+            "To become a reference AI-supported legal and business platform for contracts and company law in the United States and Europe, then expand to support Saudi law.",
+        goalsTitle: "Goals",
+        goals: [
+            "Reduce time spent on repeated contract and document reviews.",
+            "Standardize analysis across legal and business teams.",
+            "Improve risk reporting before meetings and negotiations.",
+            "Provide professional AI tools with clear usage limits for each tier.",
+        ],
+        pricingTitle: "Subscription tiers",
+        pricingIntro:
+            "AI usage is available for paid memberships only. DeepSeek V4 Flash starts with Professional, and OpenAI models are available from the SAR 299 Business tier upward.",
+        choose: "Subscribe now",
+        freeCta: "Create account",
+        contact: "Contact us",
+        finalTitle: "Start with one document, then build a complete workflow for your team.",
+        finalCta: "Go to assistant",
+    },
+} satisfies Record<Locale, Record<string, unknown>>;
+
+const plans = {
+    ar: [
+        { id: "free", name: "الأساسي", price: "مجاني", cadence: "للتصفح", body: "لإنشاء حساب وتجربة الواجهة", features: ["لا يشمل استخدام نماذج الذكاء الاصطناعي", "الترقية مطلوبة لاستخدام DeepSeek V4 Flash", "مناسب لاستكشاف المنصة"] },
+        { id: "professional", name: "المهني", price: "99 ر.س", cadence: "شهريا", body: "للمحامين والمستشارين", features: ["DeepSeek V4 Flash فقط", "200 طلب ذكاء اصطناعي شهريا", "مراجعة عقود ومستندات وجدوال مقارنة"], featured: true },
+        { id: "business", name: "الأعمال", price: "299 ر.س", cadence: "شهريا", body: "للشركات والفرق الصغيرة", features: ["DeepSeek V4 Flash", "OpenAI متاح لهذه الباقة فأعلى", "1,000 طلب ذكاء اصطناعي شهريا"] },
+        { id: "enterprise", name: "المؤسسي", price: "حسب الاحتياج", cadence: "اتفاق سنوي", body: "للجهات ذات المتطلبات الخاصة", features: ["DeepSeek V4 Flash وOpenAI", "5,000 طلب شهري مبدئيا", "حوكمة وتكاملات ودعم إعداد"] },
+    ],
+    en: [
+        { id: "free", name: "Basic", price: "Free", cadence: "browse", body: "For account setup and interface review", features: ["No AI model usage included", "Upgrade required for DeepSeek V4 Flash", "Useful for exploring the platform"] },
+        { id: "professional", name: "Professional", price: "SAR 99", cadence: "monthly", body: "For lawyers and consultants", features: ["DeepSeek V4 Flash only", "200 AI requests per month", "Contract, document, and table review"], featured: true },
+        { id: "business", name: "Business", price: "SAR 299", cadence: "monthly", body: "For companies and small teams", features: ["DeepSeek V4 Flash", "OpenAI available from this tier upward", "1,000 AI requests per month"] },
+        { id: "enterprise", name: "Enterprise", price: "Custom", cadence: "annual agreement", body: "For specialized requirements", features: ["DeepSeek V4 Flash and OpenAI", "5,000 monthly requests to start", "Governance, integrations, setup support"] },
+    ],
+} satisfies Record<Locale, Plan[]>;
 
 function LanguageSwitcher({ locale }: { locale: Locale }) {
     const t = content[locale];

@@ -104,7 +104,7 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
                 organisation: null,
                 messageCreditsUsed: 0,
                 creditsResetDate: futureResetDate.toISOString(),
-                creditsRemaining: 999999, // temporarily unlimited
+                creditsRemaining: 0,
                 tier: "Free",
                 tabularModel: "deepseek-v4-flash",
                 apiKeys: emptyApiKeys(),

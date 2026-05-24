@@ -10,9 +10,10 @@ import {
     runLLMStream,
     type ChatMessage,
 } from "../lib/chatTools";
-import { completeText } from "../lib/llm";
+import { completeText, DEFAULT_MAIN_MODEL, resolveModel } from "../lib/llm";
 import { getUserApiKeys, getUserModelSettings } from "../lib/userSettings";
 import { checkProjectAccess } from "../lib/access";
+import { assertAndConsumeAiCredit } from "../lib/billingPolicy";
 
 export const chatRouter = Router();
 
@@ -446,7 +447,7 @@ chatRouter.post("/", requireAuth, async (req, res) => {
     const messages = parsedMessages.messages;
     const chat_id = parsedChatId.chatId;
     const project_id = parsedProjectId.projectId;
-    const model = parsedModel.model;
+    const model = resolveModel(parsedModel.model, DEFAULT_MAIN_MODEL);
 
     devLog("[chat/stream] incoming request", {
         userId,
@@ -458,6 +459,10 @@ chatRouter.post("/", requireAuth, async (req, res) => {
 
     const userEmail = res.locals.userEmail as string | undefined;
     const db = createServerSupabase();
+    const aiAccess = await assertAndConsumeAiCredit(userId, model, db);
+    if (!aiAccess.ok) {
+        return void res.status(aiAccess.status).json({ detail: aiAccess.detail });
+    }
     let chatId = chat_id ?? null;
     let chatTitle: string | null = null;
     let resolvedProjectId: string | null = parsedProjectId.projectId;

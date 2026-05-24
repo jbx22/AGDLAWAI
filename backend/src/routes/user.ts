@@ -9,10 +9,9 @@ import {
   normalizeApiKeyProvider,
   saveUserApiKey,
 } from "../lib/userApiKeys";
+import { monthlyAiRequestsForTier } from "../lib/billingPolicy";
 
 export const userRouter = Router();
-
-const MONTHLY_CREDIT_LIMIT = 999999;
 
 type UserProfileRow = {
   display_name: string | null;
@@ -28,13 +27,15 @@ function serializeProfile(
   apiKeyStatus?: ApiKeyStatus,
 ) {
   const creditsUsed = row.message_credits_used ?? 0;
+  const tier = row.tier || "Free";
+  const monthlyLimit = monthlyAiRequestsForTier(tier);
   return {
     displayName: row.display_name,
     organisation: row.organisation,
     messageCreditsUsed: creditsUsed,
     creditsResetDate: row.credits_reset_date,
-    creditsRemaining: Math.max(MONTHLY_CREDIT_LIMIT - creditsUsed, 0),
-    tier: row.tier || "Free",
+    creditsRemaining: Math.max(monthlyLimit - creditsUsed, 0),
+    tier,
     tabularModel: resolveModel(row.tabular_model, DEFAULT_TABULAR_MODEL),
     ...(apiKeyStatus ? { apiKeyStatus } : {}),
   };

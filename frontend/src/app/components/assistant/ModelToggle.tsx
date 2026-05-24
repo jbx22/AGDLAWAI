@@ -21,6 +21,7 @@ export interface ModelOption {
 
 export const MODELS: ModelOption[] = [
     { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash", group: "DeepSeek" },
+    { id: "gpt-5.4-mini", label: "OpenAI", group: "OpenAI" },
 ];
 
 export const DEFAULT_MODEL_ID = "deepseek-v4-flash";
@@ -38,14 +39,15 @@ interface Props {
     value: string;
     onChange: (id: string) => void;
     apiKeys?: ApiKeyState;
+    tier?: string | null;
 }
 
-export function ModelToggle({ value, onChange, apiKeys }: Props) {
+export function ModelToggle({ value, onChange, apiKeys, tier }: Props) {
     const [isOpen, setIsOpen] = useState(false);
     const selected = MODELS.find((m) => m.id === value);
     const selectedLabel = selected?.label ?? "Model";
     const selectedAvailable = apiKeys
-        ? isModelAvailable(value, apiKeys)
+        ? isModelAvailable(value, apiKeys, tier)
         : true;
 
     return (
@@ -81,7 +83,7 @@ export function ModelToggle({ value, onChange, apiKeys }: Props) {
                             </DropdownMenuLabel>
                             {items.map((m) => {
                                 const available = apiKeys
-                                    ? isModelAvailable(m.id, apiKeys)
+                                    ? isModelAvailable(m.id, apiKeys, tier)
                                     : true;
                                 return (
                                     <DropdownMenuItem

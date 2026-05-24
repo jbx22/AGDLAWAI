@@ -113,7 +113,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     const handleSubmit = () => {
         const query = value.trim();
         if (!query || isLoading) return;
-        if (apiKeys && !isModelAvailable(model, apiKeys)) {
+        if (apiKeys && !isModelAvailable(model, apiKeys, profile?.tier)) {
             setApiKeyModalProvider(getModelProvider(model));
             return;
         }
@@ -275,6 +275,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 value={model}
                                 onChange={setModel}
                                 apiKeys={apiKeys}
+                                tier={profile?.tier}
                             />
                             <button
                                 type="button"

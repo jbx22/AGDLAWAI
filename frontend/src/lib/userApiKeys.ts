@@ -16,11 +16,14 @@ type EncryptedKeyRow = {
     auth_tag: string;
 };
 
-const PROVIDERS: ApiKeyProvider[] = ["deepseek"];
+const PROVIDERS: ApiKeyProvider[] = ["deepseek", "openai"];
 
 function envApiKey(provider: ApiKeyProvider): string | null {
     if (provider === "deepseek") {
         return process.env.DEEPSEEK_API_KEY?.trim() || null;
+    }
+    if (provider === "openai") {
+        return process.env.OPENAI_API_KEY?.trim() || null;
     }
     return null;
 }

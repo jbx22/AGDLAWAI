@@ -3,22 +3,23 @@ import { requireAuth } from "@/app/api/auth-helpers";
 import { db } from "@/db";
 import { userProfiles, users } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
+import { getTierPolicy } from "@/lib/billing/plans";
 
-const MONTHLY_CREDIT_LIMIT = 999999;
 const DEFAULT_TABULAR_MODEL = "deepseek-v4-flash";
 
 function apiKeyStatus() {
   const hasDeepSeek = !!process.env.DEEPSEEK_API_KEY?.trim();
+  const hasOpenAI = !!process.env.OPENAI_API_KEY?.trim();
   return {
     deepseek: hasDeepSeek,
     claude: false,
     gemini: false,
-    openai: false,
+    openai: hasOpenAI,
     sources: {
       deepseek: hasDeepSeek ? "env" : null,
       claude: null,
       gemini: null,
-      openai: null,
+      openai: hasOpenAI ? "env" : null,
     },
   };
 }
@@ -67,13 +68,15 @@ export async function GET(req: NextRequest) {
     }
 
     const creditsUsed = row.message_credits_used ?? 0;
+    const tier = row.tier || "Free";
+    const policy = getTierPolicy(tier);
     return NextResponse.json({
       displayName: row.display_name,
       organisation: row.organisation,
       messageCreditsUsed: creditsUsed,
       creditsResetDate: row.credits_reset_date,
-      creditsRemaining: Math.max(MONTHLY_CREDIT_LIMIT - creditsUsed, 0),
-      tier: row.tier || "Free",
+      creditsRemaining: Math.max(policy.monthlyAiRequests - creditsUsed, 0),
+      tier,
       tabularModel: row.tabular_model || DEFAULT_TABULAR_MODEL,
       apiKeyStatus: apiKeyStatus(),
     });

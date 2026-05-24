@@ -448,6 +448,7 @@ function TRChatInput({
     model,
     onModelChange,
     apiKeys,
+    tier,
     onHeightChange,
 }: {
     isLoading: boolean;
@@ -456,6 +457,7 @@ function TRChatInput({
     model: string;
     onModelChange: (id: string) => void;
     apiKeys?: ApiKeyState;
+    tier?: string | null;
     onHeightChange: (height: number) => void;
 }) {
     const [value, setValue] = useState("");
@@ -532,6 +534,7 @@ function TRChatInput({
                         value={model}
                         onChange={onModelChange}
                         apiKeys={apiKeys}
+                        tier={tier}
                     />
                     <button
                         type="button"
@@ -991,7 +994,7 @@ export function TRChatPanel({
 
     async function handleSubmit(trimmed: string) {
         if (!trimmed || isLoading) return;
-        if (apiKeys && !isModelAvailable(currentModel, apiKeys)) {
+        if (apiKeys && !isModelAvailable(currentModel, apiKeys, profile?.tier)) {
             setApiKeyModalProvider(getModelProvider(currentModel));
             return;
         }
@@ -1493,6 +1496,7 @@ export function TRChatPanel({
                     updateModelPreference("tabularModel", id)
                 }
                 apiKeys={apiKeys}
+                tier={profile?.tier}
                 onHeightChange={setInputHeight}
             />
 
