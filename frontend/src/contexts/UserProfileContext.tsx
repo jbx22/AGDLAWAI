@@ -17,6 +17,7 @@ import {
     saveApiKey,
     updateUserProfile,
 } from "@/app/lib/mikeApi";
+import { signOut as nextAuthSignOut } from "next-auth/react";
 
 interface UserProfile {
     displayName: string | null;
@@ -97,24 +98,8 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
             const profileData = await getUserProfile();
             setProfile(toProfile(profileData));
         } catch {
-            // Calculate a default future reset date for fallback
-            const futureResetDate = new Date();
-            futureResetDate.setDate(futureResetDate.getDate() + 30);
-
-            // Set fallback profile data on exception
-            setProfile({
-                displayName: null,
-                organisation: null,
-                messageCreditsUsed: 0,
-                creditsResetDate: futureResetDate.toISOString(),
-                creditsRemaining: 0,
-                tier: "Free",
-                role: "user",
-                accountStatus: "active",
-                suspensionReason: null,
-                tabularModel: "deepseek-v4-flash",
-                apiKeys: emptyApiKeys(),
-            });
+            setProfile(null);
+            await nextAuthSignOut({ callbackUrl: "/login" });
         } finally {
             setLoading(false);
         }
