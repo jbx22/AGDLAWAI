@@ -16,6 +16,32 @@ type MoyasarCallback = {
     };
 };
 
+type VerifiedInvoice = MoyasarCallback & {
+    id: string;
+    status: string;
+};
+
+const MOYASAR_INVOICES_URL = "https://api.moyasar.com/v1/invoices";
+
+function basicAuth(secretKey: string): string {
+    return `Basic ${Buffer.from(`${secretKey}:`).toString("base64")}`;
+}
+
+async function fetchVerifiedInvoice(invoiceId: string): Promise<VerifiedInvoice | null> {
+    const secretKey = process.env.MOYASAR_SECRET_KEY?.trim();
+    if (!secretKey) return null;
+
+    const response = await fetch(`${MOYASAR_INVOICES_URL}/${encodeURIComponent(invoiceId)}`, {
+        headers: {
+            Authorization: basicAuth(secretKey),
+            Accept: "application/json",
+        },
+        cache: "no-store",
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as VerifiedInvoice;
+}
+
 async function applyPaidSubscription(payload: MoyasarCallback | null) {
     const plan = getBillingPlan(payload?.metadata?.plan_id);
     const userId = payload?.metadata?.user_id;
@@ -49,29 +75,26 @@ async function applyPaidSubscription(payload: MoyasarCallback | null) {
 
 export async function POST(req: NextRequest) {
     const payload = (await req.json().catch(() => null)) as MoyasarCallback | null;
-    await applyPaidSubscription(payload);
+    if (!payload?.id) {
+        return NextResponse.json({ ok: false, detail: "Invoice id required" }, { status: 400 });
+    }
+
+    const verified = await fetchVerifiedInvoice(payload.id);
+    if (!verified) {
+        return NextResponse.json({ ok: false, detail: "Payment verification unavailable" }, { status: 202 });
+    }
+
+    await applyPaidSubscription(verified);
 
     return NextResponse.json({ ok: true });
 }
 
 export async function GET(req: NextRequest) {
-    const status = req.nextUrl.searchParams.get("status") ?? undefined;
-    const planId = req.nextUrl.searchParams.get("plan_id") ?? undefined;
-    const userId = req.nextUrl.searchParams.get("user_id") ?? undefined;
     const id = req.nextUrl.searchParams.get("id") ?? undefined;
-    const amount = Number(req.nextUrl.searchParams.get("amount") ?? 0) || undefined;
-    const currency = req.nextUrl.searchParams.get("currency") ?? undefined;
+    const verified = id ? await fetchVerifiedInvoice(id) : null;
+    if (verified) {
+        await applyPaidSubscription(verified);
+    }
 
-    await applyPaidSubscription({
-        id,
-        status,
-        amount,
-        currency,
-        metadata: {
-            plan_id: planId,
-            user_id: userId,
-        },
-    });
-
-    return NextResponse.redirect(new URL(`/subscription?payment=${status === "paid" ? "success" : "pending"}`, req.url), 303);
+    return NextResponse.redirect(new URL(`/subscription?payment=${verified?.status === "paid" ? "success" : "pending"}`, req.url), 303);
 }

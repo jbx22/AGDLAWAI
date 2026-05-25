@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     }
 
     const salt = crypto.randomBytes(16).toString("hex");
-    const passwordHash = crypto.createHash("sha256").update(password + salt).digest("hex");
+    const passwordHash = `scrypt:${crypto.scryptSync(password, salt, 64).toString("hex")}`;
 
     const [newUser] = await db.insert(users).values({
       email: normalizedEmail,

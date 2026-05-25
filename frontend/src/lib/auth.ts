@@ -5,6 +5,27 @@ import { userProfiles, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
 
+function legacySha256(password: string, salt: string): string {
+  return crypto.createHash("sha256").update(password + salt).digest("hex");
+}
+
+function scryptHash(password: string, salt: string): string {
+  return crypto.scryptSync(password, salt, 64).toString("hex");
+}
+
+function safeEqualHex(left: string, right: string): boolean {
+  const a = Buffer.from(left, "hex");
+  const b = Buffer.from(right, "hex");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function verifyPassword(password: string, storedHash: string, salt: string): boolean {
+  if (storedHash.startsWith("scrypt:")) {
+    return safeEqualHex(scryptHash(password, salt), storedHash.slice("scrypt:".length));
+  }
+  return safeEqualHex(legacySha256(password, salt), storedHash);
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Credentials({
@@ -27,12 +48,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const user = userRows[0];
         if (!user) return null;
         
-        const hashed = crypto
-          .createHash("sha256")
-          .update(password + user.password_salt)
-          .digest("hex");
-        
-        if (hashed !== user.password_hash) return null;
+        if (!verifyPassword(password, user.password_hash, user.password_salt)) return null;
 
         const [profile] = await db
           .select({
