@@ -37,7 +37,8 @@ function getClient(): S3Client {
 }
 
 const BUCKET = process.env.R2_BUCKET_NAME ?? "mike";
-const LOCAL_STORAGE_ROOT = process.env.LOCAL_STORAGE_DIR ?? ".data/uploads";
+const LOCAL_STORAGE_ROOT =
+  process.env.LOCAL_STORAGE_DIR ?? (process.env.VERCEL ? "/tmp/jbl-uploads" : ".data/uploads");
 
 export const storageEnabled = Boolean(
   R2_ENDPOINT &&
