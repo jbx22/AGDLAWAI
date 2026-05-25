@@ -29,7 +29,7 @@ const content = {
         otherLabel: "English",
         otherFlag: "🇺🇸",
         open: "افتح المنصة",
-        nav: ["الهوية", "الرسالة والرؤية", "الأهداف", "الاشتراكات", "تواصل معنا"],
+        nav: ["الهوية", "كيف يعمل", "الرسالة والرؤية", "الأهداف", "الاشتراكات", "تواصل معنا"],
         badge: "ذكاء قانوني عملي للمتحدثين بالعربية",
         title: "JBL يساعد المتحدثين بالعربية على فهم القانون الأمريكي والأوروبي والعمل به بثقة.",
         intro:
@@ -51,6 +51,15 @@ const content = {
                 "ضرائب ومخاطر وتزامات",
                 "تقدم إرشادا أوليا لفهم الضرائب، المخاطر، والالتزامات، مع التأكيد أن المخرجات تساعد المختص ولا تستبدل الاستشارة القانونية أو الضريبية البشرية.",
             ],
+        ],
+        howItWorksTitle: "كيف يعمل",
+        howItWorksIntro:
+            "واجهة عملية قريبة من Mike الأصلي، مع تجربة عربية موجهة لإدارة المستندات، المساعد، الجداول، ومسارات العمل.",
+        howItWorksItems: [
+            ["المساعد", "اطرح أسئلة على مستنداتك وشغل مسارات عمل متعددة الخطوات مع مراجع واضحة."],
+            ["المشاريع", "نظم ملفات القضايا والشركات داخل مساحات عمل واضحة لكل مشروع."],
+            ["المراجعة الجدولية", "حوّل عشرات المستندات إلى جدول مراجعة قابل للتتبع والاقتباس."],
+            ["مسارات العمل", "احفظ خطوات المراجعة القانونية المتكررة وشغلها بنقرة واحدة."],
         ],
         missionTitle: "الرسالة",
         mission:
@@ -80,7 +89,7 @@ const content = {
         otherLabel: "العربية",
         otherFlag: "🇸🇦",
         open: "Open app",
-        nav: ["Identity", "Mission & vision", "Goals", "Pricing", "Contact"],
+        nav: ["Identity", "How it works", "Mission & vision", "Goals", "Pricing", "Contact"],
         badge: "Practical legal AI for Arabic speakers",
         title: "JBL helps Arabic speakers navigate U.S. and European law with confidence.",
         intro:
@@ -102,6 +111,15 @@ const content = {
                 "Tax, risk, and obligations",
                 "It provides first-pass guidance on taxes, risks, and obligations while making clear that outputs support professionals and do not replace human legal or tax advice.",
             ],
+        ],
+        howItWorksTitle: "How it works",
+        howItWorksIntro:
+            "The product stays close to Mike's original workflow model, with an Arabic-first experience for documents, assistant work, tabular review, and reusable workflows.",
+        howItWorksItems: [
+            ["Assistant", "Ask questions across your documents and run multi-step legal workflows with clear citations."],
+            ["Projects", "Organize matter files and company work inside focused project workspaces."],
+            ["Tabular review", "Turn document sets into a cited review table built for comparison and export."],
+            ["Workflows", "Save repeatable legal review steps and run them in one click."],
         ],
         missionTitle: "Mission",
         mission:
@@ -232,6 +250,13 @@ const plans = {
     ],
 } satisfies Record<Locale, Plan[]>;
 
+const howItWorksImages = [
+    "/screenshots/assistant.jpg",
+    "/screenshots/projects.jpg",
+    "/screenshots/tabular-review.jpg",
+    "/screenshots/workflows.jpg",
+];
+
 function localizedPath(locale: Locale, path: string) {
     return locale === "ar" ? path : `/en${path}`;
 }
@@ -286,7 +311,7 @@ function SubscribeButton({
 export function HomePage({ locale = "ar" }: { locale?: Locale }) {
     const t = content[locale];
     const Icon = locale === "ar" ? ArrowLeft : ArrowRight;
-    const navTargets = ["#identity", "#mission", "#goals", "#pricing", localizedPath(locale, "/contact")];
+    const navTargets = ["#identity", "#how-it-works", "#mission", "#goals", "#pricing", localizedPath(locale, "/contact")];
 
     return (
         <main className="min-h-screen bg-[#f7f5ef] text-[#151827]" dir={t.dir as string}>
@@ -373,6 +398,34 @@ export function HomePage({ locale = "ar" }: { locale?: Locale }) {
                             </article>
                         );
                     })}
+                </div>
+            </section>
+
+            <section id="how-it-works" className="bg-[#fdfcf8]">
+                <div className="mx-auto max-w-7xl px-5 py-16 md:px-8">
+                    <div className="max-w-3xl">
+                        <p className="text-sm font-bold text-[#8d7330]">{t.howItWorksTitle as string}</p>
+                        <h2 className="mt-3 text-3xl font-extrabold text-[#151827] md:text-4xl">
+                            {t.howItWorksIntro as string}
+                        </h2>
+                    </div>
+                    <div className="mt-9 grid gap-5 lg:grid-cols-2">
+                        {(t.howItWorksItems as string[][]).map(([title, body], index) => (
+                            <article key={title} className="overflow-hidden rounded-md border border-[#ded6c3] bg-white">
+                                <div className="bg-[#e4e7eb] p-4 md:p-6">
+                                    <img
+                                        src={howItWorksImages[index]}
+                                        alt={title}
+                                        className="aspect-[16/11] w-full rounded-md object-cover object-top shadow-sm"
+                                    />
+                                </div>
+                                <div className="p-6">
+                                    <h3 className="text-2xl font-extrabold text-[#151827]">{title}</h3>
+                                    <p className="mt-3 leading-8 text-[#55565c]">{body}</p>
+                                </div>
+                            </article>
+                        ))}
+                    </div>
                 </div>
             </section>
 

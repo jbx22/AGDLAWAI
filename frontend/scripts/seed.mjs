@@ -14,6 +14,7 @@ import { eq, and } from 'drizzle-orm';
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import crypto from 'node:crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FRONTEND_DIR = join(__dirname, '..');
@@ -145,6 +146,37 @@ Be precise with legal terminology in both languages.`,
   },
 ];
 
+const DEMO_ACCOUNTS = [
+  {
+    email: 'demo@jblbizlaw.com',
+    password: 'DemoUser123!',
+    displayName: 'JBL Demo User',
+    organisation: 'JBL Demo',
+    role: 'user',
+    tier: 'Professional',
+  },
+  {
+    email: 'admin@jblbizlaw.com',
+    password: 'AdminDemo123!',
+    displayName: 'JBL Demo Admin',
+    organisation: 'JBL Demo',
+    role: 'admin',
+    tier: 'Business',
+  },
+  {
+    email: 'superadmin@jblbizlaw.com',
+    password: 'SuperAdminDemo123!',
+    displayName: 'JBL Demo Super Admin',
+    organisation: 'JBL Demo',
+    role: 'super_admin',
+    tier: 'Enterprise',
+  },
+];
+
+function hashPassword(password, salt) {
+  return crypto.createHash('sha256').update(password + salt).digest('hex');
+}
+
 async function main() {
   console.log('╔══════════════════════════════════════════╗');
   console.log('║   JBL BIZ LAW — Database Seeding        ║');
@@ -158,7 +190,7 @@ async function main() {
       await sql`
         INSERT INTO workflows (id, user_id, title, type, prompt_md, columns_config, practice, is_system)
         VALUES (${wf.id}, ${wf.user_id}, ${wf.title}, ${wf.type}, ${wf.prompt_md}, 
-                ${wf.columns_config ? JSON.parse(wf.columns_config) : null}, 
+                ${wf.columns_config}::jsonb, 
                 ${wf.practice}, ${wf.is_system})
         ON CONFLICT (id) DO UPDATE SET
           title = EXCLUDED.title,
@@ -177,8 +209,60 @@ async function main() {
     }
   }
 
+  console.log('\nSeeding demo accounts...');
+  for (const account of DEMO_ACCOUNTS) {
+    const salt = crypto.randomBytes(16).toString('hex');
+    const passwordHash = hashPassword(account.password, salt);
+
+    try {
+      const [user] = await sql`
+        INSERT INTO users (email, password_hash, password_salt, display_name)
+        VALUES (${account.email}, ${passwordHash}, ${salt}, ${account.displayName})
+        ON CONFLICT (email) DO UPDATE SET
+          password_hash = EXCLUDED.password_hash,
+          password_salt = EXCLUDED.password_salt,
+          display_name = EXCLUDED.display_name,
+          updated_at = NOW()
+        RETURNING id
+      `;
+
+      await sql`
+        INSERT INTO user_profiles (
+          user_id,
+          display_name,
+          organisation,
+          role,
+          tier,
+          account_status,
+          tabular_model
+        )
+        VALUES (
+          ${user.id},
+          ${account.displayName},
+          ${account.organisation},
+          ${account.role},
+          ${account.tier},
+          'active',
+          'deepseek-v4-flash'
+        )
+        ON CONFLICT (user_id) DO UPDATE SET
+          display_name = EXCLUDED.display_name,
+          organisation = EXCLUDED.organisation,
+          role = EXCLUDED.role,
+          tier = EXCLUDED.tier,
+          account_status = 'active',
+          tabular_model = EXCLUDED.tabular_model,
+          updated_at = NOW()
+      `;
+      console.log(`  demo account: ${account.email} (${account.role})`);
+    } catch (err) {
+      console.log(`  demo account ${account.email}: ${err.message}`);
+    }
+  }
+
   console.log('\n✅ Seeding complete!');
   console.log(`   ${SYSTEM_WORKFLOWS.length} system workflows inserted.`);
+  console.log(`   ${DEMO_ACCOUNTS.length} demo accounts inserted or updated.`);
   console.log('\nNext steps:');
   console.log('  Run the dev server:  npm run dev');
 }
