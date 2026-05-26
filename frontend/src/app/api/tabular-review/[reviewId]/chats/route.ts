@@ -3,7 +3,7 @@ import { requireAuth } from "@/app/api/auth-helpers";
 import { db } from "@/db";
 import { tabularReviewChats, tabularReviews } from "@/db/schema";
 import { errorToResponse } from "@/lib/http-error";
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 async function canAccessReview(reviewId: string, userId: string, userEmail: string) {
   const [review] = await db
@@ -35,7 +35,7 @@ export async function GET(
     const chats = await db
       .select()
       .from(tabularReviewChats)
-      .where(and(eq(tabularReviewChats.review_id, reviewId), eq(tabularReviewChats.user_id, userId)))
+      .where(eq(tabularReviewChats.review_id, reviewId))
       .orderBy(desc(tabularReviewChats.updated_at));
     return NextResponse.json(chats);
   } catch (err) {
