@@ -13,7 +13,7 @@ const content = {
         homeHref: "/",
         switchHref: "/en/contact",
         switchLabel: "English",
-        switchFlag: "🇺🇸",
+        switchFlag: "EN",
         title: "تواصل معنا",
         intro:
             "املأ النموذج وسنراجع طلبك بخصوص العقود، النماذج القانونية، تأسيس الشركات، الضرائب، أو أي احتياج قانوني وتجاري مرتبط بالولايات المتحدة وأوروبا.",
@@ -28,7 +28,7 @@ const content = {
         submit: "إرسال الطلب",
         sending: "جار الإرسال...",
         successTitle: "تم استلام طلبك",
-        successBody: "سنتواصل معك قريبا عبر البريد الإلكتروني أو رقم الجوال المسجل.",
+        successBody: "سنتواصل معك قريباً عبر البريد الإلكتروني أو رقم الجوال المسجل.",
         back: "العودة للرئيسية",
         error: "تعذر إرسال الطلب الآن. حاول مرة أخرى.",
         topics: [
@@ -45,7 +45,7 @@ const content = {
         homeHref: "/en",
         switchHref: "/contact",
         switchLabel: "العربية",
-        switchFlag: "🇸🇦",
+        switchFlag: "AR",
         title: "Contact us",
         intro:
             "Fill out the form and we will review your request about contracts, legal forms, company setup, tax questions, or other U.S. and European legal-business needs.",
