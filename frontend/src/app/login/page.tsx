@@ -62,7 +62,7 @@ export default function LoginPage() {
                 {/* Login Form */}
                 <div className="bg-white border border-gray-200 rounded-2xl p-8 mb-4">
                     <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-right text-2xl font-serif">
+                        <h2 className={`text-2xl font-serif ${locale === "ar" ? "text-right" : "text-left"}`}>
                             تسجيل الدخول
                         </h2>
                         <div className="bg-gray-100 p-1 rounded-md flex text-xs font-medium">

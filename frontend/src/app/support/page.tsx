@@ -147,7 +147,7 @@ export default function SupportPage() {
                                             onClick={() =>
                                                 setFeedbackType(type.value)
                                             }
-                                            className={`p-4 rounded-lg border-2 text-right transition-all ${
+                                            className={`p-4 rounded-lg border-2 ${locale === "ar" ? "text-right" : "text-left"} transition-all ${
                                                 feedbackType === type.value
                                                     ? "border-blue-600 bg-blue-50"
                                                     : "border-gray-200 hover:border-gray-300"
