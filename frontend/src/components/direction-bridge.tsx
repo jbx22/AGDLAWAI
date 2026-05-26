@@ -5,6 +5,10 @@ import { useEffect } from "react";
 
 function localeFromPathname(pathname: string | null) {
   if (pathname === "/en" || pathname?.startsWith("/en/")) return "en";
+  if (typeof window !== "undefined") {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("lang") === "en") return "en";
+  }
   return "ar";
 }
 

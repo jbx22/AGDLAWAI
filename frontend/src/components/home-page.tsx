@@ -261,6 +261,12 @@ function localizedPath(locale: Locale, path: string) {
     return locale === "ar" ? path : `/en${path}`;
 }
 
+function localizedAppPath(locale: Locale, path: string) {
+    if (locale === "ar") return path;
+    const separator = path.includes("?") ? "&" : "?";
+    return `${path}${separator}lang=en`;
+}
+
 function LanguageSwitcher({ locale }: { locale: Locale }) {
     const t = content[locale];
     return (
@@ -286,7 +292,7 @@ function SubscribeButton({
     if (plan.id === "free") {
         return (
             <Link
-                href="/signup"
+                href={localizedAppPath(locale, "/signup")}
                 className="mt-7 inline-flex w-full items-center justify-center rounded-md border border-[#1a1a2e] px-4 py-3 text-sm font-bold text-[#1a1a2e] transition hover:bg-[#1a1a2e] hover:text-white"
             >
                 {label}
@@ -296,7 +302,7 @@ function SubscribeButton({
 
     return (
         <Link
-            href={`/subscription?plan=${plan.id}`}
+            href={localizedAppPath(locale, `/subscription?plan=${plan.id}`)}
             className={`mt-7 inline-flex w-full items-center justify-center rounded-md px-4 py-3 text-sm font-bold transition ${
                 plan.featured
                     ? "bg-[#c9a84c] text-[#151827] hover:bg-[#d9ba65]"
@@ -328,7 +334,7 @@ export function HomePage({ locale = "ar" }: { locale?: Locale }) {
                     <div className="flex items-center gap-2">
                         <LanguageSwitcher locale={locale} />
                         <Link
-                            href="/login?callbackUrl=/assistant"
+                            href={localizedAppPath(locale, "/login?callbackUrl=/assistant")}
                             className="inline-flex items-center gap-2 rounded-md bg-[#1a1a2e] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2b2d4d]"
                         >
                             {t.open as string}
@@ -351,14 +357,14 @@ export function HomePage({ locale = "ar" }: { locale?: Locale }) {
                         <p className="mt-6 max-w-2xl text-lg leading-9 text-[#4b4b52]">{t.intro as string}</p>
                         <div className="mt-8 flex flex-wrap gap-3">
                             <Link
-                                href="/signup"
+                                href={localizedAppPath(locale, "/signup")}
                                 className="inline-flex items-center gap-2 rounded-md bg-[#c9a84c] px-5 py-3 text-sm font-bold text-[#151827] transition hover:bg-[#d9ba65]"
                             >
                                 {t.signup as string}
                                 <Icon size={16} aria-hidden="true" />
                             </Link>
                             <Link
-                                href="/login"
+                                href={localizedAppPath(locale, "/login")}
                                 className="inline-flex items-center gap-2 rounded-md border border-[#1a1a2e] px-5 py-3 text-sm font-bold text-[#1a1a2e] transition hover:bg-[#1a1a2e] hover:text-white"
                             >
                                 {t.login as string}
@@ -517,7 +523,7 @@ export function HomePage({ locale = "ar" }: { locale?: Locale }) {
                 <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-12 md:flex-row md:items-center md:justify-between md:px-8">
                     <h2 className="max-w-3xl text-3xl font-extrabold">{t.finalTitle as string}</h2>
                     <Link
-                        href="/login?callbackUrl=/assistant"
+                        href={localizedAppPath(locale, "/login?callbackUrl=/assistant")}
                         className="inline-flex items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-bold text-[#1a1a2e] transition hover:bg-[#f2ead7]"
                     >
                         {t.finalCta as string}

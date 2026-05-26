@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ import { SiteLogo } from "@/components/site-logo";
 
 export default function LoginPage() {
     const router = useRouter();
+    const pathname = usePathname();
     const [callbackUrl, setCallbackUrl] = useState("/assistant");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -22,7 +24,16 @@ export default function LoginPage() {
         if (next && next.startsWith("/") && !next.startsWith("//")) {
             setCallbackUrl(next);
         }
-    }, []);
+    }, [pathname]);
+
+    const locale =
+        pathname === "/en" ||
+        pathname?.startsWith("/en/") ||
+        (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("lang") === "en")
+            ? "en"
+            : "ar";
+    const dir = locale === "ar" ? "rtl" : "ltr";
+    const signupHref = locale === "ar" ? "/signup" : "/signup?lang=en";
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -43,7 +54,7 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-dvh bg-white flex items-start justify-center px-6 pt-32 md:pt-40 pb-10 relative" dir="rtl">
+        <div className="min-h-dvh bg-white flex items-start justify-center px-6 pt-32 md:pt-40 pb-10 relative" dir={dir}>
             <div className="absolute top-4 md:top-8 left-1/2 -translate-x-1/2">
                 <SiteLogo size="md" className="md:text-4xl" asLink />
             </div>
@@ -59,7 +70,7 @@ export default function LoginPage() {
                                 دخول
                             </span>
                             <Link
-                                href="/signup"
+                                href={signupHref}
                                 className="px-3 py-1 text-gray-500 hover:text-gray-900"
                             >
                                 إنشاء حساب

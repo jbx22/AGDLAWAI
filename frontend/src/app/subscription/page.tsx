@@ -4,7 +4,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserProfile } from "@/contexts/UserProfileContext";
 import { BILLING_PLANS, type BillingPlanId } from "@/lib/billing/plans";
 import { ArrowLeft, Check, Loader2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 
 const plansList: {
   id: BillingPlanId;
@@ -57,31 +58,38 @@ function paymentMessage(code: string | null) {
 }
 
 export default function SubscriptionPage() {
+  const pathname = usePathname();
+  const router = useRouter();
   const { isAuthenticated, authLoading } = useAuth();
   const { profile } = useUserProfile();
   const [loading, setLoading] = useState<string | null>(null);
-  const [payment, setPayment] = useState<string | null>(null);
-  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const currentTier = profile?.tier || "Free";
+  const searchParams =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search)
+      : new URLSearchParams();
+  const payment = searchParams.get("payment");
+  const selectedPlan = searchParams.get("plan");
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setPayment(params.get("payment"));
-    setSelectedPlan(params.get("plan"));
-  }, []);
+  const locale =
+    pathname === "/en" ||
+    pathname?.startsWith("/en/") ||
+    searchParams.get("lang") === "en"
+      ? "en"
+      : "ar";
 
-  const orderedPlans = useMemo(() => {
-    if (!selectedPlan) return plansList;
-    return [...plansList].sort((a, b) => {
-      if (a.id === selectedPlan) return -1;
-      if (b.id === selectedPlan) return 1;
-      return 0;
-    });
-  }, [selectedPlan]);
+  const orderedPlans = selectedPlan
+    ? [...plansList].sort((a, b) => {
+        if (a.id === selectedPlan) return -1;
+        if (b.id === selectedPlan) return 1;
+        return 0;
+      })
+    : plansList;
 
   const handleSubscribe = async (planId: BillingPlanId) => {
     if (!authLoading && !isAuthenticated) {
-      window.location.href = `/login?callbackUrl=/subscription?plan=${planId}`;
+      const callbackUrl = `/subscription?plan=${planId}${locale === "en" ? "&lang=en" : ""}`;
+      router.push(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}${locale === "en" ? "&lang=en" : ""}`);
       return;
     }
 
@@ -99,7 +107,7 @@ export default function SubscriptionPage() {
     const localeInput = document.createElement("input");
     localeInput.type = "hidden";
     localeInput.name = "locale";
-    localeInput.value = "ar";
+    localeInput.value = locale;
     form.appendChild(localeInput);
 
     document.body.appendChild(form);
@@ -108,7 +116,7 @@ export default function SubscriptionPage() {
   };
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-7 px-5 py-8 md:px-8" dir="rtl">
+    <div className="mx-auto flex max-w-7xl flex-col gap-7 px-5 py-8 md:px-8" dir={locale === "ar" ? "rtl" : "ltr"}>
       <div className="rounded-md border border-[#ded6c3] bg-[#fdfcf8] p-6">
         <p className="text-sm font-bold text-[#8d7330]">باقات الاشتراك</p>
         <h1 className="mt-2 text-3xl font-extrabold text-[#151827]">

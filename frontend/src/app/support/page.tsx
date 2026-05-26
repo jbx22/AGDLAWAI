@@ -3,19 +3,21 @@
 import { useState, useEffect } from "react";
 import { Send, CheckCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 
 type FeedbackType = "bug" | "feature" | "question" | "other";
 
 export default function SupportPage() {
     const router = useRouter();
+    const pathname = usePathname();
     const { user, isAuthenticated, authLoading } = useAuth();
 
     useEffect(() => {
         if (!authLoading && !isAuthenticated) {
             router.push("/");
         }
-    }, [authLoading, isAuthenticated, router]);
+    }, [authLoading, isAuthenticated, pathname, router]);
     const [feedbackType, setFeedbackType] = useState<FeedbackType>("question");
     const [subject, setSubject] = useState("");
     const [message, setMessage] = useState("");
@@ -82,9 +84,17 @@ export default function SupportPage() {
         }
     };
 
+    const locale =
+        pathname === "/en" ||
+        pathname?.startsWith("/en/") ||
+        (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("lang") === "en")
+            ? "en"
+            : "ar";
+    const dir = locale === "ar" ? "rtl" : "ltr";
+
     if (isSubmitted) {
         return (
-            <div className="h-full flex items-center justify-center p-4" dir="rtl">
+            <div className="h-full flex items-center justify-center p-4" dir={dir}>
                 <div className="max-w-md w-full bg-white rounded-xl text-center">
                     <div className="flex justify-center mb-4">
                         <div className="h-16 w-16 bg-green-100 rounded-full flex items-center justify-center">
@@ -109,7 +119,7 @@ export default function SupportPage() {
     }
 
     return (
-        <div className="w-full flex flex-col px-6 h-full" dir="rtl">
+        <div className="w-full flex flex-col px-6 h-full" dir={dir}>
             <div className="w-full max-w-4xl m-auto flex flex-col h-full">
                 {/* Fixed Header Section */}
                 <div className="flex-shrink-0 pt-6 md:pt-10 pb-0">

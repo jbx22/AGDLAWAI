@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
@@ -11,6 +12,7 @@ import { signIn } from "next-auth/react";
 
 export default function SignupPage() {
     const router = useRouter();
+    const pathname = usePathname();
     const [callbackUrl, setCallbackUrl] = useState("/assistant");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -27,7 +29,16 @@ export default function SignupPage() {
         if (next && next.startsWith("/") && !next.startsWith("//")) {
             setCallbackUrl(next);
         }
-    }, []);
+    }, [pathname]);
+
+    const locale =
+        pathname === "/en" ||
+        pathname?.startsWith("/en/") ||
+        (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("lang") === "en")
+            ? "en"
+            : "ar";
+    const dir = locale === "ar" ? "rtl" : "ltr";
+    const loginHref = locale === "ar" ? "/login" : "/login?lang=en";
 
     const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -84,7 +95,7 @@ export default function SignupPage() {
     // Success View
     if (success) {
         return (
-            <div className="min-h-dvh bg-white flex items-start justify-center px-6 pt-32 md:pt-40 pb-10 relative" dir="rtl">
+            <div className="min-h-dvh bg-white flex items-start justify-center px-6 pt-32 md:pt-40 pb-10 relative" dir={dir}>
                 <div className="absolute top-4 md:top-8 left-1/2 -translate-x-1/2">
                     <SiteLogo size="md" className="md:text-4xl" asLink />
                 </div>
@@ -107,7 +118,7 @@ export default function SignupPage() {
 
     // Default Signup Form View
     return (
-        <div className="min-h-dvh bg-white flex items-start justify-center px-6 pt-32 md:pt-40 pb-10 relative" dir="rtl">
+        <div className="min-h-dvh bg-white flex items-start justify-center px-6 pt-32 md:pt-40 pb-10 relative" dir={dir}>
             <div className="absolute top-4 md:top-8 left-1/2 -translate-x-1/2">
                 <SiteLogo size="md" className="md:text-4xl" asLink />
             </div>
@@ -119,7 +130,7 @@ export default function SignupPage() {
                         </h2>
                         <div className="bg-gray-100 p-1 rounded-md flex text-xs font-medium">
                             <Link
-                                href="/login"
+                                href={loginHref}
                                 className="px-3 py-1 text-gray-500 hover:text-gray-900"
                             >
                                 تسجيل الدخول

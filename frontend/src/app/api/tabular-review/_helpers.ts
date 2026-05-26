@@ -44,9 +44,14 @@ function providerLabel(provider: ReturnType<typeof providerForModel>): string {
   return "Gemini";
 }
 
+function providerEnvKey(provider: ReturnType<typeof providerForModel>): string {
+  if (provider === "claude") return "ANTHROPIC_API_KEY";
+  return `${provider.toUpperCase()}_API_KEY`;
+}
+
 export function missingModelApiKey(model: string, apiKeys: UserApiKeys) {
   const provider = providerForModel(model);
-  if (apiKeys[provider]?.trim() || process.env[`${provider.toUpperCase()}_API_KEY`]) return null;
+  if (apiKeys[provider]?.trim() || process.env[providerEnvKey(provider)]?.trim()) return null;
   return {
     provider,
     model,
