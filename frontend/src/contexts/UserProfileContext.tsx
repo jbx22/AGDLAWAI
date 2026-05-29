@@ -17,7 +17,6 @@ import {
     saveApiKey,
     updateUserProfile,
 } from "@/app/lib/mikeApi";
-import { signOut as nextAuthSignOut } from "next-auth/react";
 
 interface UserProfile {
     displayName: string | null;
@@ -99,7 +98,8 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
             setProfile(toProfile(profileData));
         } catch {
             setProfile(null);
-            await nextAuthSignOut({ redirect: false });
+            // Only sign out if the error suggests the user is not truly authenticated
+            // (e.g. 401 Unauthorized). Otherwise, keep the user context.
         } finally {
             setLoading(false);
         }

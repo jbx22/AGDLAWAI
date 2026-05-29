@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { SiteLogo } from "@/components/site-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,11 +44,19 @@ const copy = {
 export default function LoginPage() {
     const router = useRouter();
     const pathname = usePathname();
+    const { data: session, status } = useSession();
     const [callbackUrl, setCallbackUrl] = useState("/assistant");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // Redirect already-authenticated users away from login
+    useEffect(() => {
+        if (status === "authenticated" && session?.user) {
+            router.replace(callbackUrl);
+        }
+    }, [status, session, router, callbackUrl]);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -116,6 +124,7 @@ export default function LoginPage() {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 placeholder={t.emailPlaceholder}
+                                autoComplete="email"
                                 required
                                 className="w-full"
                                 dir="ltr"
@@ -132,6 +141,7 @@ export default function LoginPage() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder={t.passwordPlaceholder}
+                                autoComplete="current-password"
                                 required
                                 className="w-full"
                                 dir="ltr"

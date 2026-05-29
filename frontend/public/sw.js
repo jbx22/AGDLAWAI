@@ -1,4 +1,4 @@
-const CACHE = "agd-law-ai-v1";
+const CACHE = "agd-law-ai-static-v2";
 const STATIC_FILES = [
   "/",
   "/manifest.json",
@@ -10,9 +10,7 @@ const STATIC_FILES = [
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE).then((cache) => {
-      return cache.addAll(STATIC_FILES).catch(() => {
-        // Static files that may not exist yet are skipped gracefully
-      });
+      return cache.addAll(STATIC_FILES).catch(() => {});
     })
   );
   self.skipWaiting();
@@ -31,16 +29,22 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET and non-http(s) requests
+  // Only handle GET requests
   if (request.method !== "GET" || !url.protocol.startsWith("http")) return;
 
-  // API requests: network-first with timeout fallback
+  // ── Skip HTML / main document navigations ──
+  // Let the browser handle pages natively to avoid stale-HTML / hydration issues
+  if (request.mode === "navigate" || url.pathname.match(/^\/[^.]*$/) && !url.pathname.startsWith("/_next/")) {
+    return;
+  }
+
+  // ── API requests: network-first with short timeout ──
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(networkFirstWithTimeout(request, 5000));
     return;
   }
 
-  // Static assets: cache-first
+  // ── Static assets: cache-first ──
   if (
     url.pathname.startsWith("/_next/static/") ||
     url.pathname.startsWith("/icons/") ||
@@ -50,7 +54,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Pages: network-first, fallback to cache
+  // ── Everything else: network-first with offline fallback ──
   event.respondWith(networkFirst(request));
 });
 
@@ -77,14 +81,9 @@ async function networkFirst(request) {
       cache.put(request, response.clone());
     }
     return response;
-  } catch (error) {
+  } catch {
     const cached = await caches.match(request);
     if (cached) return cached;
-    // For navigation requests, serve the cached root page
-    if (request.mode === "navigate") {
-      const root = await caches.match("/");
-      if (root) return root;
-    }
     return new Response("Offline", { status: 503 });
   }
 }

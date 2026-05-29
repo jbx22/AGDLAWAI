@@ -31,6 +31,34 @@ export async function GET(req: NextRequest) {
   try {
     const { userId, userEmail } = await requireAuth();
 
+    // Graceful fallback if database is not configured (local dev)
+    if (!process.env.DATABASE_URL) {
+      return NextResponse.json({
+        displayName: null,
+        organisation: null,
+        messageCreditsUsed: 0,
+        creditsResetDate: new Date().toISOString(),
+        creditsRemaining: 50,
+        tier: "Free",
+        role: "user",
+        accountStatus: "active",
+        suspensionReason: null,
+        tabularModel: "deepseek-v4-flash",
+        apiKeyStatus: {
+          deepseek: !!process.env.DEEPSEEK_API_KEY?.trim(),
+          claude: false,
+          gemini: false,
+          openai: !!process.env.OPENAI_API_KEY?.trim(),
+          sources: {
+            deepseek: process.env.DEEPSEEK_API_KEY?.trim() ? "env" : null,
+            claude: null,
+            gemini: null,
+            openai: process.env.OPENAI_API_KEY?.trim() ? "env" : null,
+          },
+        },
+      });
+    }
+
     let profile = await db
       .select({
         display_name: userProfiles.display_name,

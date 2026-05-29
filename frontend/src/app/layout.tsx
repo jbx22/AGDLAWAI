@@ -79,9 +79,10 @@ export default function RootLayout({
                 <script
                     dangerouslySetInnerHTML={{
                         __html: `
+// Force-unregister old service workers to prevent stale-HTML caching issues
 if (typeof window !== "undefined" && "serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/sw.js").catch(() => {});
+    navigator.serviceWorker.getRegistrations().then(function(regs) {
+        regs.forEach(function(reg) { reg.unregister(); });
     });
 }
 `,

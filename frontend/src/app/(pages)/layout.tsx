@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { PanelLeft } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ChatHistoryProvider } from "@/app/contexts/ChatHistoryContext";
 import { SidebarContext } from "@/app/contexts/SidebarContext";
 import { AppSidebar } from "@/app/components/shared/AppSidebar";
+import Link from "next/link";
 
 export default function BizLawLayout({
     children,
@@ -14,7 +14,6 @@ export default function BizLawLayout({
     children: React.ReactNode;
 }) {
     const { isAuthenticated, authLoading } = useAuth();
-    const router = useRouter();
 
     const [isSidebarOpenDesktop, setIsSidebarOpenDesktop] = useState(() => {
         if (typeof window !== "undefined") {
@@ -58,11 +57,7 @@ export default function BizLawLayout({
         }
     };
 
-    useEffect(() => {
-        if (!authLoading && !isAuthenticated) {
-            router.push("/login");
-        }
-    }, [authLoading, isAuthenticated, router]);
+
 
     if (authLoading) {
         return (
@@ -72,7 +67,19 @@ export default function BizLawLayout({
         );
     }
 
-    if (!isAuthenticated) return null;
+    if (!isAuthenticated) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-[#f7f5ef]">
+                <div className="text-center max-w-md px-6">
+                    <h1 className="text-2xl font-bold text-[#151827] mb-4">الرجاء تسجيل الدخول</h1>
+                    <p className="text-[#55565c] mb-6">يجب تسجيل الدخول للوصول إلى هذه الصفحة.</p>
+                    <Link href="/login" className="inline-flex items-center gap-2 rounded-md bg-[#c9a84c] px-5 py-3 text-sm font-bold text-[#151827] transition hover:bg-[#d9ba65]">
+                        تسجيل الدخول
+                    </Link>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <ChatHistoryProvider>

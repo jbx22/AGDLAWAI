@@ -11,6 +11,8 @@ import {
     ChevronsUpDown,
     ChevronDown,
     Crown,
+    Shield,
+    ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserProfile } from "@/contexts/UserProfileContext";
@@ -30,6 +32,8 @@ const NAV_ITEMS = [
 ];
 
 const SUBSCRIPTION_NAV_ITEM = { href: "/subscription", label: "Subscription", icon: Crown };
+const ADMIN_NAV_ITEM = { href: "/admin", label: "Admin", icon: Shield };
+const SUPER_ADMIN_NAV_ITEM = { href: "/super-admin", label: "Super Admin", icon: ShieldCheck };
 
 interface AppSidebarProps {
     isOpen: boolean;
@@ -170,7 +174,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
             </div>
 
             {/* Nav items */}
-            {[...NAV_ITEMS, SUBSCRIPTION_NAV_ITEM].map(({ href, label, icon: Icon }) => {
+            {[...NAV_ITEMS, SUBSCRIPTION_NAV_ITEM, ...(profile?.role === "admin" || profile?.role === "super_admin" ? [ADMIN_NAV_ITEM] : []), ...(profile?.role === "super_admin" ? [SUPER_ADMIN_NAV_ITEM] : [])].map(({ href, label, icon: Icon }) => {
                 const isActive =
                     pathname === href || pathname.startsWith(href + "/");
                 return (

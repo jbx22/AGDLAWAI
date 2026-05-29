@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { CheckCircle2 } from "lucide-react";
 import { SiteLogo } from "@/components/site-logo";
 import { Button } from "@/components/ui/button";
@@ -73,6 +73,7 @@ const copy = {
 export default function SignupPage() {
     const router = useRouter();
     const pathname = usePathname();
+    const { data: session, status } = useSession();
     const [callbackUrl, setCallbackUrl] = useState("/assistant");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -82,6 +83,13 @@ export default function SignupPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+
+    // Redirect already-authenticated users away from signup
+    useEffect(() => {
+        if (status === "authenticated" && session?.user) {
+            router.replace(callbackUrl);
+        }
+    }, [status, session, router, callbackUrl]);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -203,21 +211,21 @@ export default function SignupPage() {
                             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                                 {t.email}
                             </label>
-                            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t.emailPlaceholder} required className="w-full" dir="ltr" />
+                            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t.emailPlaceholder} autoComplete="new-email" required className="w-full" dir="ltr" />
                         </div>
 
                         <div className={textAlign}>
                             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                                 {t.password}
                             </label>
-                            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t.passwordPlaceholder} required className="w-full" dir="ltr" />
+                            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t.passwordPlaceholder} autoComplete="new-password" required className="w-full" dir="ltr" />
                         </div>
 
                         <div className={textAlign}>
                             <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
                                 {t.confirmPassword}
                             </label>
-                            <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder={t.confirmPasswordPlaceholder} required className="w-full" dir="ltr" />
+                            <Input id="confirmPassword" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder={t.confirmPasswordPlaceholder} autoComplete="new-password" required className="w-full" dir="ltr" />
                         </div>
 
                         {error && <div className="text-red-600 text-sm bg-red-50 p-3 rounded">{error}</div>}

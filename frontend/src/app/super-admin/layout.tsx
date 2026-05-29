@@ -13,12 +13,17 @@ export default function SuperAdminLayout({
   const { isAuthenticated, authLoading } = useAuth();
   const { profile, loading: profileLoading } = useUserProfile();
   const router = useRouter();
-
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.replace("/login?callbackUrl=/super-admin");
     }
   }, [authLoading, isAuthenticated, router]);
+
+  useEffect(() => {
+    if (!authLoading && !profileLoading && profile && profile.role !== "super_admin") {
+      router.replace("/assistant");
+    }
+  }, [authLoading, profileLoading, profile, router]);
 
   if (authLoading || profileLoading) {
     return (
@@ -29,6 +34,7 @@ export default function SuperAdminLayout({
   }
 
   if (!isAuthenticated) return null;
+  if (!profile || profile.role !== "super_admin") return null;
 
   return <>{children}</>;
 }
