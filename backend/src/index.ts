@@ -12,6 +12,8 @@ import { workflowsRouter } from "./routes/workflows";
 import { userRouter } from "./routes/user";
 import { downloadsRouter } from "./routes/downloads";
 import { caseLawRouter } from "./routes/caseLaw";
+import { billingRouter } from "./routes/billing";
+import { adminRouter } from "./routes/admin";
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
@@ -126,6 +128,11 @@ app.post("/tabular-review/:reviewId/chat", chatLimiter);
 app.post("/tabular-review/:reviewId/generate", chatLimiter);
 app.post("/chat/create", chatCreateLimiter);
 app.post("/chat/:chatId/generate-title", chatCreateLimiter);
+app.post("/billing/moyasar/checkout", makeLimiter({
+  windowMs: minutes(envInt("RATE_LIMIT_BILLING_WINDOW_MINUTES", 15)),
+  max: envInt("RATE_LIMIT_BILLING_MAX", 20),
+  message: "Too many billing requests. Please try again later.",
+}));
 app.post("/single-documents", uploadLimiter);
 app.post("/single-documents/:documentId/versions", uploadLimiter);
 app.put(
@@ -155,6 +162,8 @@ app.use("/user", userRouter);
 app.use("/users", userRouter);
 app.use("/download", downloadsRouter);
 app.use("/case-law", caseLawRouter);
+app.use("/billing", billingRouter);
+app.use("/admin", adminRouter);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 

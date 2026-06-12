@@ -118,6 +118,23 @@ export async function requireAuth(
   res.locals.userId = data.user.id;
   res.locals.userEmail = data.user.email?.toLowerCase() ?? "";
   res.locals.token = token;
+  const { data: profile, error: profileError } = await admin
+    .from("user_profiles")
+    .select("account_status")
+    .eq("user_id", data.user.id)
+    .maybeSingle();
+  if (profileError && profileError.code !== "42703") {
+    res.status(500).json({ detail: profileError.message });
+    return;
+  }
+  const status = (profile as { account_status?: string } | null)?.account_status;
+  if (status === "suspended" || status === "deleted") {
+    res.status(403).json({
+      code: "account_not_active",
+      detail: status === "suspended" ? "Account is suspended" : "Account is deleted",
+    });
+    return;
+  }
   if (!(await enforceLoginMfaIfEnabled(req, res, admin, token))) {
     return;
   }

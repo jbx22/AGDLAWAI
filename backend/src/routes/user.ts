@@ -39,6 +39,9 @@ type UserProfileRow = {
     message_credits_used: number;
     credits_reset_date: string;
     tier: string;
+    role?: "user" | "admin" | "super_admin" | null;
+    account_status?: "active" | "suspended" | "deleted" | null;
+    suspension_reason?: string | null;
     title_model: string | null;
     tabular_model: string;
     mfa_on_login: boolean | null;
@@ -67,6 +70,8 @@ function errorMessage(error: unknown): string {
 }
 
 const PROFILE_SELECT =
+    "display_name, organisation, message_credits_used, credits_reset_date, tier, role, account_status, suspension_reason, title_model, tabular_model, mfa_on_login, legal_research_us";
+const PROFILE_SELECT_NO_ADMIN =
     "display_name, organisation, message_credits_used, credits_reset_date, tier, title_model, tabular_model, mfa_on_login, legal_research_us";
 const PROFILE_SELECT_NO_LEGAL =
     "display_name, organisation, message_credits_used, credits_reset_date, tier, title_model, tabular_model, mfa_on_login";
@@ -102,6 +107,31 @@ async function selectProfile(
             ? await fullQuery.single()
             : await fullQuery.maybeSingle();
     if (!full.error) return full;
+
+    if (
+        isMissingProfileColumn(full.error, "role") ||
+        isMissingProfileColumn(full.error, "account_status") ||
+        isMissingProfileColumn(full.error, "suspension_reason")
+    ) {
+        const noAdminQuery = db
+            .from("user_profiles")
+            .select(PROFILE_SELECT_NO_ADMIN)
+            .eq("user_id", userId);
+        const noAdmin =
+            mode === "single"
+                ? await noAdminQuery.single()
+                : await noAdminQuery.maybeSingle();
+        if (!noAdmin.error) {
+            if (noAdmin.data && typeof noAdmin.data === "object") {
+                Object.assign(noAdmin.data as Record<string, unknown>, {
+                    role: "user",
+                    account_status: "active",
+                    suspension_reason: null,
+                });
+            }
+            return noAdmin;
+        }
+    }
 
     const legacy = await selectProfileLegacy(db, userId, mode);
     if (legacy.data && typeof legacy.data === "object") {
@@ -198,6 +228,9 @@ function serializeProfile(row: UserProfileRow, apiKeyStatus?: ApiKeyStatus) {
         creditsResetDate: row.credits_reset_date,
         creditsRemaining: Math.max(MONTHLY_CREDIT_LIMIT - creditsUsed, 0),
         tier: row.tier || "Free",
+        role: row.role ?? "user",
+        accountStatus: row.account_status ?? "active",
+        suspensionReason: row.suspension_reason ?? null,
         titleModel: resolveModel(row.title_model, titleFallback),
         tabularModel: resolveModel(row.tabular_model, DEFAULT_TABULAR_MODEL),
         mfaOnLogin: row.mfa_on_login === true,

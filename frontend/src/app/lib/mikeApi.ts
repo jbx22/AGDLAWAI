@@ -219,6 +219,9 @@ export interface UserProfile {
     creditsResetDate: string;
     creditsRemaining: number;
     tier: string;
+    role: "user" | "admin" | "super_admin";
+    accountStatus: "active" | "suspended" | "deleted";
+    suspensionReason: string | null;
     titleModel: string;
     tabularModel: string;
     mfaOnLogin: boolean;
@@ -441,6 +444,135 @@ export interface DocumentVersion {
     page_count?: number | null;
     deleted_at?: string | null;
     deleted_by?: string | null;
+}
+
+export type BillingCheckoutResponse = {
+    url: string;
+    invoiceId: string | null;
+};
+
+export async function createMoyasarCheckout(payload: {
+    plan: string;
+    locale: "ar" | "en";
+}): Promise<BillingCheckoutResponse> {
+    return apiRequest<BillingCheckoutResponse>("/billing/moyasar/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+}
+
+export type AdminRole = "user" | "admin" | "super_admin";
+export type AccountStatus = "active" | "suspended" | "deleted";
+
+export type AdminOverview = {
+    principal: { userId: string; email: string; role: AdminRole };
+    counts: Record<
+        | "users"
+        | "activeUsers"
+        | "suspendedUsers"
+        | "admins"
+        | "projects"
+        | "documents"
+        | "chats"
+        | "tabularReviews"
+        | "aiCreditsUsed",
+        number
+    >;
+    tiers: { tier: string; count: number }[];
+    financials: {
+        paidSubscriptions: number;
+        pendingSubscriptions: number;
+        activeSubscriptions: number;
+        totalRevenueCents: number;
+        revenue30dCents: number;
+        payingUsers: number;
+        averageRevenuePerPaidUserCents: number;
+        currency: string;
+    };
+    recentUsers: {
+        id: string;
+        email: string;
+        displayName: string | null;
+        organisation: string | null;
+        tier: string;
+        messageCreditsUsed: number;
+        role: AdminRole;
+        accountStatus: AccountStatus;
+        createdAt: string;
+    }[];
+    admins: {
+        id: string;
+        email: string;
+        displayName: string | null;
+        role: AdminRole;
+        accountStatus: AccountStatus;
+        suspensionReason: string | null;
+        updatedAt: string;
+    }[];
+    auditLogs: {
+        id: string;
+        actorEmail: string | null;
+        action: string;
+        entityType: string;
+        entityId: string | null;
+        metadata: Record<string, unknown>;
+        createdAt: string;
+    }[];
+};
+
+export async function getAdminOverview(): Promise<AdminOverview> {
+    return apiRequest<AdminOverview>("/admin/overview");
+}
+
+export async function updateAdminUser(
+    userId: string,
+    payload: {
+        tier?: string;
+        accountStatus?: "active" | "suspended";
+        suspensionReason?: string;
+        messageCreditsUsed?: number;
+    },
+): Promise<void> {
+    return apiRequest<void>(`/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function createAdminAccount(payload: {
+    email: string;
+    displayName?: string | null;
+    password: string;
+    role: "admin" | "super_admin";
+}): Promise<{ id: string; email: string; role: string }> {
+    return apiRequest<{ id: string; email: string; role: string }>("/admin/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function updateAdminAccount(
+    userId: string,
+    payload: {
+        displayName?: string | null;
+        password?: string;
+        role?: AdminRole;
+        accountStatus?: "active" | "suspended";
+        suspensionReason?: string;
+    },
+): Promise<void> {
+    return apiRequest<void>(`/admin/accounts/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function deleteAdminAccount(userId: string): Promise<void> {
+    return apiRequest<void>(`/admin/accounts/${userId}`, { method: "DELETE" });
 }
 
 export type MikeDocumentVersion = DocumentVersion;

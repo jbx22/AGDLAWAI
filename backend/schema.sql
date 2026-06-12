@@ -14,6 +14,11 @@ create table if not exists public.user_profiles (
   display_name text,
   organisation text,
   tier text not null default 'Free',
+  role text not null default 'user'
+    check (role in ('user', 'admin', 'super_admin')),
+  account_status text not null default 'active'
+    check (account_status in ('active', 'suspended', 'deleted')),
+  suspension_reason text,
   message_credits_used integer not null default 0,
   credits_reset_date timestamptz not null default (now() + interval '30 days'),
   title_model text,
@@ -27,6 +32,50 @@ create table if not exists public.user_profiles (
 
 create index if not exists idx_user_profiles_user
   on public.user_profiles(user_id);
+
+create table if not exists public.admin_audit_logs (
+  id uuid primary key default gen_random_uuid(),
+  actor_user_id uuid references auth.users(id) on delete set null,
+  actor_email text,
+  action text not null,
+  entity_type text not null,
+  entity_id text,
+  target_user_id uuid references auth.users(id) on delete set null,
+  metadata jsonb not null default '{}'::jsonb,
+  ip_address text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists admin_audit_actor_idx
+  on public.admin_audit_logs(actor_user_id, created_at);
+
+create index if not exists admin_audit_target_idx
+  on public.admin_audit_logs(target_user_id, created_at);
+
+create table if not exists public.subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  provider text not null default 'moyasar',
+  provider_invoice_id text,
+  plan_id text not null,
+  tier text not null,
+  status text not null default 'pending',
+  amount_cents integer not null default 0,
+  currency text not null default 'SAR',
+  started_at timestamptz not null default now(),
+  current_period_end timestamptz,
+  canceled_at timestamptz,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists subscriptions_user_idx
+  on public.subscriptions(user_id, status);
+
+create unique index if not exists subscriptions_provider_invoice_unique
+  on public.subscriptions(provider, provider_invoice_id)
+  where provider_invoice_id is not null;
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -66,6 +115,8 @@ create index if not exists idx_user_api_keys_user
   on public.user_api_keys(user_id);
 
 alter table public.user_api_keys enable row level security;
+alter table public.admin_audit_logs enable row level security;
+alter table public.subscriptions enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Projects and documents
@@ -429,5 +480,7 @@ revoke all on public.tabular_cells from anon, authenticated;
 revoke all on public.tabular_review_chats from anon, authenticated;
 revoke all on public.tabular_review_chat_messages from anon, authenticated;
 revoke all on public.user_api_keys from anon, authenticated;
+revoke all on public.admin_audit_logs from anon, authenticated;
+revoke all on public.subscriptions from anon, authenticated;
 revoke all on public.courtlistener_citation_index from anon, authenticated;
 revoke all on public.courtlistener_opinion_cluster_index from anon, authenticated;

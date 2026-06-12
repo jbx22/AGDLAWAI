@@ -90,9 +90,9 @@ function toProfile(data: ApiUserProfile): UserProfile {
 
     return {
         ...profile,
-        role: "user",
-        accountStatus: "active",
-        suspensionReason: null,
+        role: profile.role ?? "user",
+        accountStatus: profile.accountStatus ?? "active",
+        suspensionReason: profile.suspensionReason ?? null,
         apiKeys,
     };
 }
