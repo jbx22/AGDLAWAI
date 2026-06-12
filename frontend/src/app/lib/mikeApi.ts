@@ -256,6 +256,7 @@ export async function updateUserMfaOnLogin(
 
 export type ApiKeyProvider =
     | "claude"
+    | "deepseek"
     | "gemini"
     | "openai"
     | "openrouter"

@@ -17,7 +17,7 @@ create table if not exists public.user_profiles (
   message_credits_used integer not null default 0,
   credits_reset_date timestamptz not null default (now() + interval '30 days'),
   title_model text,
-  tabular_model text not null default 'gemini-3-flash-preview',
+  tabular_model text not null default 'deepseek-v4-flash',
   quote_model text,
   mfa_on_login boolean not null default false,
   legal_research_us boolean not null default true,
@@ -53,7 +53,7 @@ create trigger on_auth_user_created
 create table if not exists public.user_api_keys (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  provider text not null check (provider in ('claude', 'gemini', 'openai', 'openrouter', 'courtlistener')),
+  provider text not null check (provider in ('claude', 'deepseek', 'gemini', 'openai', 'openrouter', 'courtlistener')),
   encrypted_key text not null,
   iv text not null,
   auth_tag text not null,

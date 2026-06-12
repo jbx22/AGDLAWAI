@@ -5,6 +5,7 @@ import {
     DEFAULT_TABULAR_MODEL,
     DEFAULT_TITLE_MODEL,
     CLAUDE_LOW_MODELS,
+    DEEPSEEK_LOW_MODELS,
     OPENAI_LOW_MODELS,
     resolveModel,
 } from "../lib/llm";
@@ -181,9 +182,11 @@ async function selectProfileLegacy(
 
 function serializeProfile(row: UserProfileRow, apiKeyStatus?: ApiKeyStatus) {
     const creditsUsed = row.message_credits_used ?? 0;
-    const titleFallback = apiKeyStatus?.gemini
-        ? DEFAULT_TITLE_MODEL
-        : apiKeyStatus?.openai
+    const titleFallback = apiKeyStatus?.deepseek
+        ? DEEPSEEK_LOW_MODELS[0]
+        : apiKeyStatus?.gemini
+          ? DEFAULT_TITLE_MODEL
+          : apiKeyStatus?.openai
           ? OPENAI_LOW_MODELS[0]
           : apiKeyStatus?.claude
             ? CLAUDE_LOW_MODELS[0]

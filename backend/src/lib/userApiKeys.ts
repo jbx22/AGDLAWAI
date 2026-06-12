@@ -5,6 +5,7 @@ import type { UserApiKeys } from "./llm";
 type Db = ReturnType<typeof createServerSupabase>;
 export type ApiKeyProvider =
     | "claude"
+    | "deepseek"
     | "gemini"
     | "openai"
     | "openrouter"
@@ -23,6 +24,7 @@ type EncryptedKeyRow = {
 
 const PROVIDERS: ApiKeyProvider[] = [
     "claude",
+    "deepseek",
     "gemini",
     "openai",
     "openrouter",
@@ -37,6 +39,8 @@ function envApiKey(provider: ApiKeyProvider): string | null {
                 process.env.CLAUDE_API_KEY?.trim() ||
                 null
             );
+        case "deepseek":
+            return process.env.DEEPSEEK_API_KEY?.trim() || null;
         case "gemini":
             return process.env.GEMINI_API_KEY?.trim() || null;
         case "openai":
@@ -112,12 +116,14 @@ export async function getUserApiKeyStatus(
 ): Promise<ApiKeyStatus> {
     const status: ApiKeyStatus = {
         claude: false,
+        deepseek: false,
         gemini: false,
         openai: false,
         openrouter: false,
         courtlistener: false,
         sources: {
             claude: null,
+            deepseek: null,
             gemini: null,
             openai: null,
             openrouter: null,
@@ -155,6 +161,7 @@ export async function getUserApiKeys(
 ): Promise<UserApiKeys> {
     const apiKeys: UserApiKeys = {
         claude: envApiKey("claude"),
+        deepseek: envApiKey("deepseek"),
         gemini: envApiKey("gemini"),
         openai: envApiKey("openai"),
         openrouter: envApiKey("openrouter"),

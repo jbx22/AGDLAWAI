@@ -62,6 +62,7 @@ export const tabularRouter = Router();
 
 function providerLabel(provider: Provider): string {
     if (provider === "claude") return "Anthropic";
+    if (provider === "deepseek") return "DeepSeek";
     if (provider === "openai") return "OpenAI";
     return "Gemini";
 }

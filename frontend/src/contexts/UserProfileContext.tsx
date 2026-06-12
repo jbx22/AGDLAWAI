@@ -58,6 +58,7 @@ const UserProfileContext = createContext<UserProfileContextType | undefined>(
 
 const API_KEY_PROVIDERS: ApiKeyProvider[] = [
     "claude",
+    "deepseek",
     "gemini",
     "openai",
     "openrouter",
@@ -67,6 +68,7 @@ const API_KEY_PROVIDERS: ApiKeyProvider[] = [
 function emptyApiKeys(): ApiKeyState {
     return {
         claude: { configured: false, source: null },
+        deepseek: { configured: false, source: null },
         gemini: { configured: false, source: null },
         openai: { configured: false, source: null },
         openrouter: { configured: false, source: null },

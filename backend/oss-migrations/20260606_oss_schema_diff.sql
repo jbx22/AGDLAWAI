@@ -22,7 +22,7 @@ alter table public.user_api_keys
 
 alter table public.user_api_keys
   add constraint user_api_keys_provider_check
-  check (provider in ('claude', 'gemini', 'openai', 'openrouter', 'courtlistener'));
+  check (provider in ('claude', 'deepseek', 'gemini', 'openai', 'openrouter', 'courtlistener'));
 
 alter table public.user_api_keys enable row level security;
 

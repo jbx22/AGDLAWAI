@@ -23,6 +23,11 @@ import {
 
 const API_KEY_FIELDS = [
     {
+        provider: "deepseek",
+        label: "DeepSeek API Key",
+        placeholder: "sk-...",
+    },
+    {
         provider: "claude",
         label: "Anthropic (Claude) API Key",
         placeholder: "sk-ant-â€¦",
@@ -73,7 +78,7 @@ export default function ModelsAndApiKeysPage() {
                         <TabularModelDropdown
                             value={
                                 profile?.tabularModel ??
-                                "gemini-3-flash-preview"
+                                "deepseek-v4-flash"
                             }
                             apiKeys={profile?.apiKeys}
                             onChange={(id) =>
@@ -142,7 +147,8 @@ function TabularModelDropdown({
     const [isOpen, setIsOpen] = useState(false);
     const selected = MODELS.find((m) => m.id === value);
     const selectedAvailable = apiKeys ? isModelAvailable(value, apiKeys) : true;
-    const groups: ("Anthropic" | "Google" | "OpenAI")[] = [
+    const groups: ("Anthropic" | "DeepSeek" | "Google" | "OpenAI")[] = [
+        "DeepSeek",
         "Anthropic",
         "Google",
         "OpenAI",
