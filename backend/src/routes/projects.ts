@@ -16,6 +16,7 @@ import { docxToPdf, convertedPdfKey } from "../lib/convert";
 import { checkProjectAccess } from "../lib/access";
 import { singleFileUpload } from "../lib/upload";
 import { deleteUserProjects } from "../lib/userDataCleanup";
+import { assertUploadAllowed, recordUsage } from "../lib/subscription";
 
 export const projectsRouter = Router();
 const ALLOWED_TYPES = new Set(["pdf", "docx", "doc"]);
@@ -896,6 +897,20 @@ export async function handleDocumentUpload(
       });
 
   const content = file.buffer;
+  const rawBuf = content.buffer.slice(
+    content.byteOffset,
+    content.byteOffset + content.byteLength,
+  ) as ArrayBuffer;
+  const pageCount = suffix === "pdf" ? await countPdfPages(rawBuf) : null;
+  const uploadQuota = await assertUploadAllowed(userId, pageCount, db);
+  if (!uploadQuota.ok) {
+    return void res.status(uploadQuota.status).json({
+      code: uploadQuota.code,
+      detail: uploadQuota.detail,
+      entitlement: uploadQuota.entitlement,
+    });
+  }
+
   const { data: doc, error: insertErr } = await db
     .from("documents")
     .insert({
@@ -926,12 +941,6 @@ export async function handleDocumentUpload(
       ) as ArrayBuffer,
       contentType,
     );
-
-    const rawBuf = content.buffer.slice(
-      content.byteOffset,
-      content.byteOffset + content.byteLength,
-    ) as ArrayBuffer;
-    const pageCount = suffix === "pdf" ? await countPdfPages(rawBuf) : null;
 
     // Convert DOCX/DOC → PDF for display. PDFs are their own rendition.
     let pdfStoragePath: string | null = null;
@@ -1007,6 +1016,13 @@ export async function handleDocumentUpload(
             active_version_number: 1,
         }
       : updated;
+    await recordUsage({
+      userId,
+      metric: "uploads",
+      source: "project_document_upload",
+      metadata: { documentId: docId, projectId, filename, pageCount, sizeBytes: content.byteLength },
+      db,
+    });
     return void res.status(201).json(responseDoc);
   } catch (e) {
     await db.from("documents").update({ status: "error" }).eq("id", doc.id);

@@ -23,6 +23,14 @@ create table if not exists public.user_profiles (
   last_admin_login_at timestamptz,
   last_admin_login_ip text,
   admin_notes text,
+  trial_started_at timestamptz default now(),
+  trial_ends_at timestamptz default (now() + interval '14 days'),
+  subscription_status text not null default 'trialing'
+    check (subscription_status in ('trialing', 'active', 'past_due', 'grace_period', 'suspended', 'canceled', 'free')),
+  subscription_plan_id text not null default 'professional',
+  subscription_current_period_end timestamptz default (now() + interval '14 days'),
+  subscription_grace_until timestamptz,
+  subscription_auto_renew boolean not null default true,
   message_credits_used integer not null default 0,
   credits_reset_date timestamptz not null default (now() + interval '30 days'),
   title_model text,
@@ -68,6 +76,13 @@ create table if not exists public.subscriptions (
   currency text not null default 'SAR',
   started_at timestamptz not null default now(),
   current_period_end timestamptz,
+  billing_interval text not null default 'month',
+  auto_renew boolean not null default true,
+  trial_ends_at timestamptz,
+  grace_until timestamptz,
+  failed_payment_count integer not null default 0,
+  last_payment_status text,
+  suspended_at timestamptz,
   canceled_at timestamptz,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
@@ -80,6 +95,89 @@ create index if not exists subscriptions_user_idx
 create unique index if not exists subscriptions_provider_invoice_unique
   on public.subscriptions(provider, provider_invoice_id)
   where provider_invoice_id is not null;
+
+create table if not exists public.subscription_usage_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  subscription_id uuid references public.subscriptions(id) on delete set null,
+  plan_id text not null,
+  metric text not null
+    check (metric in ('analyses', 'summaries', 'uploads', 'ai_questions', 'tokens')),
+  quantity integer not null default 1 check (quantity >= 0),
+  period_key text not null,
+  source text not null,
+  model text,
+  tokens_prompt integer not null default 0,
+  tokens_completion integer not null default 0,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists subscription_usage_events_user_metric_period_idx
+  on public.subscription_usage_events(user_id, metric, period_key);
+
+create index if not exists subscription_usage_events_created_idx
+  on public.subscription_usage_events(created_at desc);
+
+create table if not exists public.subscription_renewal_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  subscription_id uuid references public.subscriptions(id) on delete set null,
+  plan_id text not null,
+  status text not null
+    check (status in ('trial_started', 'trial_expired', 'renewal_due', 'renewed', 'payment_failed', 'grace_started', 'suspended', 'downgraded', 'admin_changed')),
+  due_at timestamptz,
+  processed_at timestamptz,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists subscription_renewal_events_user_idx
+  on public.subscription_renewal_events(user_id, created_at desc);
+
+create index if not exists subscription_renewal_events_status_idx
+  on public.subscription_renewal_events(status, created_at desc);
+
+create table if not exists public.subscription_payment_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  subscription_id uuid references public.subscriptions(id) on delete set null,
+  provider text not null default 'moyasar',
+  provider_event_id text,
+  provider_invoice_id text,
+  plan_id text,
+  status text not null,
+  amount_cents integer not null default 0,
+  currency text not null default 'SAR',
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists subscription_payment_events_user_idx
+  on public.subscription_payment_events(user_id, created_at desc);
+
+create index if not exists subscription_payment_events_status_idx
+  on public.subscription_payment_events(status, created_at desc);
+
+create unique index if not exists subscription_payment_events_provider_event_unique
+  on public.subscription_payment_events(provider, provider_event_id)
+  where provider_event_id is not null;
+
+create table if not exists public.subscription_admin_audit_logs (
+  id uuid primary key default gen_random_uuid(),
+  actor_user_id uuid references auth.users(id) on delete set null,
+  actor_email text,
+  target_user_id uuid references auth.users(id) on delete set null,
+  action text not null,
+  before_state jsonb not null default '{}'::jsonb,
+  after_state jsonb not null default '{}'::jsonb,
+  metadata jsonb not null default '{}'::jsonb,
+  ip_address text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists subscription_admin_audit_logs_target_idx
+  on public.subscription_admin_audit_logs(target_user_id, created_at desc);
 
 create table if not exists public.admin_permissions (
   id text primary key,
@@ -309,9 +407,41 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.user_profiles (user_id)
-  values (new.id)
+  insert into public.user_profiles (
+    user_id,
+    tier,
+    subscription_plan_id,
+    subscription_status,
+    trial_started_at,
+    trial_ends_at,
+    subscription_current_period_end
+  )
+  values (
+    new.id,
+    'Professional',
+    'professional',
+    'trialing',
+    now(),
+    now() + interval '14 days',
+    now() + interval '14 days'
+  )
   on conflict (user_id) do nothing;
+
+  insert into public.subscription_renewal_events (
+    user_id,
+    plan_id,
+    status,
+    due_at,
+    metadata
+  )
+  values (
+    new.id,
+    'professional',
+    'trial_started',
+    now() + interval '14 days',
+    '{"source":"auth_trigger"}'::jsonb
+  );
+
   return new;
 exception when others then
   -- Never block signup if the profile insert fails.
@@ -323,6 +453,10 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+revoke execute on function public.handle_new_user() from anon;
+revoke execute on function public.handle_new_user() from authenticated;
+revoke execute on function public.handle_new_user() from public;
 
 create table if not exists public.user_api_keys (
   id uuid primary key default gen_random_uuid(),
@@ -352,6 +486,10 @@ alter table public.admin_system_settings enable row level security;
 alter table public.support_requests enable row level security;
 alter table public.contact_messages enable row level security;
 alter table public.ai_usage_events enable row level security;
+alter table public.subscription_usage_events enable row level security;
+alter table public.subscription_renewal_events enable row level security;
+alter table public.subscription_payment_events enable row level security;
+alter table public.subscription_admin_audit_logs enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- Projects and documents
@@ -727,6 +865,10 @@ revoke all on public.admin_system_settings from anon, authenticated;
 revoke all on public.support_requests from anon, authenticated;
 revoke all on public.contact_messages from anon, authenticated;
 revoke all on public.ai_usage_events from anon, authenticated;
+revoke all on public.subscription_usage_events from anon, authenticated;
+revoke all on public.subscription_renewal_events from anon, authenticated;
+revoke all on public.subscription_payment_events from anon, authenticated;
+revoke all on public.subscription_admin_audit_logs from anon, authenticated;
 revoke all on public.courtlistener_citation_index from anon, authenticated;
 revoke all on public.courtlistener_opinion_cluster_index from anon, authenticated;
 
@@ -740,3 +882,7 @@ grant all privileges on public.admin_system_settings to service_role;
 grant all privileges on public.support_requests to service_role;
 grant all privileges on public.contact_messages to service_role;
 grant all privileges on public.ai_usage_events to service_role;
+grant all privileges on public.subscription_usage_events to service_role;
+grant all privileges on public.subscription_renewal_events to service_role;
+grant all privileges on public.subscription_payment_events to service_role;
+grant all privileges on public.subscription_admin_audit_logs to service_role;

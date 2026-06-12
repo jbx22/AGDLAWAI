@@ -23,6 +23,7 @@ import {
 } from "../lib/documentVersions";
 import { ensureDocAccess } from "../lib/access";
 import { singleFileUpload } from "../lib/upload";
+import { assertUploadAllowed, recordUsage } from "../lib/subscription";
 
 export const documentsRouter = Router();
 const ALLOWED_TYPES = new Set(["pdf", "docx", "doc"]);
@@ -1312,6 +1313,20 @@ async function handleDocumentUpload(
       });
 
   const content = file.buffer;
+  const rawBuf = content.buffer.slice(
+    content.byteOffset,
+    content.byteOffset + content.byteLength,
+  ) as ArrayBuffer;
+  const pageCount = suffix === "pdf" ? await countPdfPages(rawBuf) : null;
+  const uploadQuota = await assertUploadAllowed(userId, pageCount, db);
+  if (!uploadQuota.ok) {
+    return void res.status(uploadQuota.status).json({
+      code: uploadQuota.code,
+      detail: uploadQuota.detail,
+      entitlement: uploadQuota.entitlement,
+    });
+  }
+
   const { data: doc, error: insertErr } = await db
     .from("documents")
     .insert({
@@ -1350,12 +1365,6 @@ async function handleDocumentUpload(
       ) as ArrayBuffer,
       contentType,
     );
-
-    const rawBuf = content.buffer.slice(
-      content.byteOffset,
-      content.byteOffset + content.byteLength,
-    ) as ArrayBuffer;
-    const pageCount = suffix === "pdf" ? await countPdfPages(rawBuf) : null;
 
     // Convert DOCX/DOC → PDF for display. PDFs are their own rendition.
     let pdfStoragePath: string | null = null;
@@ -1433,6 +1442,13 @@ async function handleDocumentUpload(
           active_version_number: 1,
         }
       : updated;
+    await recordUsage({
+      userId,
+      metric: "uploads",
+      source: "standalone_document_upload",
+      metadata: { documentId: docId, filename, pageCount, sizeBytes: content.byteLength },
+      db,
+    });
     return void res.status(201).json(responseDoc);
   } catch (e) {
     await db.from("documents").update({ status: "error" }).eq("id", doc.id);

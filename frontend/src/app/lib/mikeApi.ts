@@ -462,6 +462,37 @@ export async function createMoyasarCheckout(payload: {
     });
 }
 
+export type SubscriptionPlanSummary = {
+    id: string;
+    tier: string;
+    amountHalalas: number;
+    features: string[];
+    quotas: Record<string, number | null>;
+    dailyAiQuestions: number | null;
+    uploadPageLimit: number | null;
+};
+
+export type SubscriptionOverview = {
+    entitlement: {
+        plan: SubscriptionPlanSummary;
+        status: string;
+        isTrial: boolean;
+        trialEndsAt: string | null;
+        currentPeriodEnd: string | null;
+        graceUntil: string | null;
+        autoRenew: boolean;
+        usage: Record<string, number>;
+        dailyAiQuestionsUsed: number;
+    };
+    plans: SubscriptionPlanSummary[];
+    renewalEvents: Record<string, unknown>[];
+    paymentEvents: Record<string, unknown>[];
+};
+
+export async function getSubscriptionOverview(): Promise<SubscriptionOverview> {
+    return apiRequest<SubscriptionOverview>("/billing/subscription");
+}
+
 export type AdminRole = "user" | "admin" | "super_admin";
 export type AccountStatus = "active" | "suspended" | "deleted";
 
@@ -533,6 +564,12 @@ export type AdminOverview = {
         averageRevenuePerPaidUserCents: number;
         currency: string;
     };
+    subscriptionPlans: Record<string, unknown>[];
+    subscriptions: Record<string, unknown>[];
+    subscriptionUsageEvents: Record<string, unknown>[];
+    subscriptionRenewalEvents: Record<string, unknown>[];
+    subscriptionPaymentEvents: Record<string, unknown>[];
+    subscriptionAdminAuditLogs: Record<string, unknown>[];
     recentUsers: {
         id: string;
         email: string;
@@ -580,6 +617,17 @@ export async function updateAdminUser(
     },
 ): Promise<void> {
     return apiRequest<void>(`/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function updateUserSubscription(
+    userId: string,
+    payload: { planId: string; status: string; autoRenew?: boolean },
+): Promise<void> {
+    return apiRequest<void>(`/admin/subscriptions/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

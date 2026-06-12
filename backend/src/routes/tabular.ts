@@ -32,6 +32,7 @@ import {
     listAccessibleProjectIds,
 } from "../lib/access";
 import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
+import { checkQuota, recordUsage } from "../lib/subscription";
 
 function formatPromptSuffix(format?: string, tags?: string[]): string {
     switch (format) {
@@ -56,6 +57,10 @@ function formatPromptSuffix(format?: string, tags?: string[]): string {
         default:
             return "";
     }
+}
+
+function estimateTokens(text: string): number {
+    return Math.max(1, Math.ceil(text.length / 4));
 }
 
 export const tabularRouter = Router();
@@ -763,6 +768,14 @@ tabularRouter.post(
                 .json({ detail: "document_id and column_index are required" });
 
         const db = createServerSupabase();
+        const quota = await checkQuota(userId, "analyses", 1, db);
+        if (!quota.ok) {
+            return void res.status(quota.status).json({
+                code: quota.code,
+                detail: quota.detail,
+                entitlement: quota.entitlement,
+            });
+        }
         const { data: review, error: reviewError } = await db
             .from("tabular_reviews")
             .select("*")
@@ -867,6 +880,15 @@ tabularRouter.post(
             .eq("document_id", document_id)
             .eq("column_index", column_index);
 
+        await recordUsage({
+            userId,
+            metric: "analyses",
+            source: "tabular_regenerate_cell",
+            model: tabular_model,
+            metadata: { reviewId, document_id, column_index },
+            db,
+        });
+
         res.json(result);
     },
 );
@@ -937,6 +959,16 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
             current_version_id?: string | null;
         }[],
     );
+
+    const analysisUnits = Math.max(1, docs.length);
+    const quota = await checkQuota(userId, "analyses", analysisUnits, db);
+    if (!quota.ok) {
+        return void res.status(quota.status).json({
+            code: quota.code,
+            detail: quota.detail,
+            entitlement: quota.entitlement,
+        });
+    }
 
     const { tabular_model, api_keys } = await getUserModelSettings(userId, db);
     const missingKey = missingModelApiKey(tabular_model, api_keys);
@@ -1062,6 +1094,16 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
                 }
             }),
         );
+
+        await recordUsage({
+            userId,
+            metric: "analyses",
+            quantity: analysisUnits,
+            source: "tabular_generate",
+            model: tabular_model,
+            metadata: { reviewId, documentCount: docs.length, columnCount: columns.length },
+            db,
+        });
 
         write("data: [DONE]\n\n");
     } catch (err) {
@@ -1293,6 +1335,14 @@ tabularRouter.post("/:reviewId/chat", requireAuth, async (req, res) => {
     }
 
     const db = createServerSupabase();
+    const quota = await checkQuota(userId, "ai_questions", 1, db);
+    if (!quota.ok) {
+        return void res.status(quota.status).json({
+            code: quota.code,
+            detail: quota.detail,
+            entitlement: quota.entitlement,
+        });
+    }
     const { data: review, error } = await db
         .from("tabular_reviews")
         .select("*")
@@ -1451,6 +1501,26 @@ tabularRouter.post("/:reviewId/chat", requireAuth, async (req, res) => {
 
         const persistedEvents = stripTransientAssistantEvents(events);
         const annotations = extractTabularAnnotations(fullText, tabularStore);
+
+        await Promise.all([
+            recordUsage({
+                userId,
+                metric: "ai_questions",
+                source: "tabular_chat",
+                model: tabular_model,
+                metadata: { reviewId, chatId },
+                db,
+            }),
+            recordUsage({
+                userId,
+                metric: "tokens",
+                quantity: estimateTokens(JSON.stringify(apiMessages)) + estimateTokens(fullText),
+                source: "tabular_chat",
+                model: tabular_model,
+                metadata: { reviewId, chatId },
+                db,
+            }),
+        ]);
 
         if (chatId) {
             await db.from("tabular_review_chat_messages").insert({

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
     getAdminOverview,
     updateAdminUser,
+    updateUserSubscription,
     type AdminOverview,
 } from "@/app/lib/mikeApi";
 import {
@@ -104,6 +105,18 @@ export default function AdminPage() {
         }
     };
 
+    const updateSubscription = async (userId: string, planId: string, status = "active") => {
+        setSaving(userId);
+        try {
+            await updateUserSubscription(userId, { planId, status });
+            await load();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : "Failed to update subscription");
+        } finally {
+            setSaving(null);
+        }
+    };
+
     if (loading) return <div className="p-8 text-sm text-gray-500">Loading admin console...</div>;
     if (error) return <div className="p-8 text-sm text-red-700">{error}</div>;
     if (!overview) return null;
@@ -171,7 +184,7 @@ export default function AdminPage() {
                             String(user.messageCreditsUsed),
                             user.accountStatus,
                             <div key="a" className="flex flex-wrap gap-2">
-                                {["Free", "Explorer", "Business", "Founder Pro", "Enterprise"].map((tier) => (
+                                {["Free", "Starter", "Professional", "Enterprise"].map((tier) => (
                                     <Button key={tier} variant="outline" size="sm" disabled={saving === user.id || user.tier === tier} onClick={() => updateUser(user.id, { tier })}>
                                         {tier}
                                     </Button>
@@ -187,13 +200,43 @@ export default function AdminPage() {
 
             {activeTab === "subscriptions" && (
                 <Panel title="Subscriptions & Billing">
-                    <EmptyAware rows={overview.tiers} empty="No subscription data yet.">
-                        <DataTable headers={["Tier", "Users"]} rows={overview.tiers.map((tier) => [tier.tier, String(tier.count)])} />
-                    </EmptyAware>
                     <div className="grid gap-3 md:grid-cols-3">
                         <MiniStat label="Paid subscriptions" value={overview.financials.paidSubscriptions} />
                         <MiniStat label="Pending subscriptions" value={overview.financials.pendingSubscriptions} />
                         <MiniStat label="30d revenue" value={money.format(overview.financials.revenue30dCents / 100)} />
+                    </div>
+                    <EmptyAware rows={overview.subscriptions} empty="No subscription records yet.">
+                        <DataTable
+                            headers={["User", "Plan", "Status", "Renewal", "Auto-renew", "Admin actions"]}
+                            rows={overview.subscriptions.map((sub) => {
+                                const userId = String(sub.user_id ?? "");
+                                return [
+                                    userId || "-",
+                                    String(sub.tier ?? sub.plan_id ?? "-"),
+                                    String(sub.status ?? "-"),
+                                    sub.current_period_end ? new Date(String(sub.current_period_end)).toLocaleDateString() : "-",
+                                    sub.auto_renew === false ? "No" : "Yes",
+                                    <div key={userId || String(sub.id)} className="flex flex-wrap gap-2">
+                                        {["free", "starter", "professional", "enterprise"].map((planId) => (
+                                            <Button key={planId} size="sm" variant="outline" disabled={!userId || saving === userId} onClick={() => updateSubscription(userId, planId, planId === "free" ? "free" : "active")}>
+                                                {planId}
+                                            </Button>
+                                        ))}
+                                        <Button size="sm" variant="outline" disabled={!userId || saving === userId} onClick={() => updateSubscription(userId, String(sub.plan_id ?? "free"), "suspended")}>
+                                            Suspend
+                                        </Button>
+                                    </div>,
+                                ];
+                            })}
+                        />
+                    </EmptyAware>
+                    <div className="grid gap-4 lg:grid-cols-2">
+                        <EmptyAware rows={overview.subscriptionRenewalEvents} empty="No renewal events yet.">
+                            <DataTable headers={["User", "Plan", "Status", "Due", "Created"]} rows={overview.subscriptionRenewalEvents.map((event) => [String(event.user_id ?? "-"), String(event.plan_id ?? "-"), String(event.status ?? "-"), String(event.due_at ?? "-"), String(event.created_at ?? "-")])} />
+                        </EmptyAware>
+                        <EmptyAware rows={overview.subscriptionPaymentEvents} empty="No payment events yet.">
+                            <DataTable headers={["User", "Plan", "Status", "Amount", "Created"]} rows={overview.subscriptionPaymentEvents.map((event) => [String(event.user_id ?? "-"), String(event.plan_id ?? "-"), String(event.status ?? "-"), money.format(Number(event.amount_cents ?? 0) / 100), String(event.created_at ?? "-")])} />
+                        </EmptyAware>
                     </div>
                 </Panel>
             )}

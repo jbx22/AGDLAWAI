@@ -20,6 +20,7 @@ import {
 } from "../lib/userSettings";
 import { checkProjectAccess } from "../lib/access";
 import { safeErrorLog, safeErrorMessage } from "../lib/safeError";
+import { checkQuota, recordUsage } from "../lib/subscription";
 
 export const chatRouter = Router();
 
@@ -35,6 +36,10 @@ function normalizeGeneratedTitle(raw: string): string {
     const title = raw.trim().replace(/^["'`]+|["'`.,:;!?]+$/g, "").trim();
     if (!title) return TITLE_FALLBACK;
     return title.slice(0, 80);
+}
+
+function estimateTokens(text: string): number {
+    return Math.max(1, Math.ceil(text.length / 4));
 }
 
 type AccessibleChat = {
@@ -474,6 +479,14 @@ chatRouter.post("/", requireAuth, async (req, res) => {
 
     const userEmail = res.locals.userEmail as string | undefined;
     const db = createServerSupabase();
+    const quota = await checkQuota(userId, "ai_questions", 1, db);
+    if (!quota.ok) {
+        return void res.status(quota.status).json({
+            code: quota.code,
+            detail: quota.detail,
+            entitlement: quota.entitlement,
+        });
+    }
     let chatId = chat_id ?? null;
     let chatTitle: string | null = null;
     let resolvedProjectId: string | null = parsedProjectId.projectId;
@@ -604,6 +617,26 @@ chatRouter.post("/", requireAuth, async (req, res) => {
             signal: streamAbort.signal,
             projectId: resolvedProjectId,
         });
+
+        await Promise.all([
+            recordUsage({
+                userId,
+                metric: "ai_questions",
+                source: "chat",
+                model: model ?? null,
+                metadata: { chatId, projectId: resolvedProjectId },
+                db,
+            }),
+            recordUsage({
+                userId,
+                metric: "tokens",
+                quantity: estimateTokens(JSON.stringify(apiMessages)) + estimateTokens(fullText),
+                source: "chat",
+                model: model ?? null,
+                metadata: { chatId, projectId: resolvedProjectId },
+                db,
+            }),
+        ]);
 
         devLog("[chat/stream] LLM stream finished", {
             fullTextLen: fullText?.length ?? 0,

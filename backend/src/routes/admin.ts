@@ -12,7 +12,7 @@ import {
   writeAdminLog,
 } from "../lib/admin";
 import { createServerSupabase } from "../lib/supabase";
-import { SUBSCRIPTION_TIERS } from "../lib/billingPlans";
+import { BILLING_PLANS, SUBSCRIPTION_TIERS, nextPeriodEnd, normalizePlanId } from "../lib/billingPlans";
 
 export const adminRouter = Router();
 
@@ -109,6 +109,13 @@ adminRouter.get("/overview", requireAdmin, async (_req, res) => {
       db.from("support_requests").select("*").order("created_at", { ascending: false }).limit(50),
       db.from("contact_messages").select("*").order("created_at", { ascending: false }).limit(50),
     ]);
+  const [{ data: usageRaw }, { data: renewalRaw }, { data: paymentRaw }, { data: subAuditRaw }] =
+    await Promise.all([
+      db.from("subscription_usage_events").select("*").order("created_at", { ascending: false }).limit(250),
+      db.from("subscription_renewal_events").select("*").order("created_at", { ascending: false }).limit(100),
+      db.from("subscription_payment_events").select("*").order("created_at", { ascending: false }).limit(100),
+      db.from("subscription_admin_audit_logs").select("*").order("created_at", { ascending: false }).limit(100),
+    ]);
 
   const tierMap: Record<string, number> = {};
   for (const p of profiles as any[]) {
@@ -141,6 +148,12 @@ adminRouter.get("/overview", requireAdmin, async (_req, res) => {
         paidSubs.length > 0 ? Math.round(totalRevenueCents / paidSubs.length) : 0,
       currency: "SAR",
     },
+    subscriptionPlans: Object.values(BILLING_PLANS),
+    subscriptions: can("subscriptions.read") ? subs : [],
+    subscriptionUsageEvents: can("subscriptions.read") || can("ai_usage.read") ? usageRaw ?? [] : [],
+    subscriptionRenewalEvents: can("subscriptions.read") ? renewalRaw ?? [] : [],
+    subscriptionPaymentEvents: can("subscriptions.read") ? paymentRaw ?? [] : [],
+    subscriptionAdminAuditLogs: can("subscriptions.read") ? subAuditRaw ?? [] : [],
     recentUsers: can("users.read") ? recentUsers : [],
     admins: can("admins.read") ? admins : [],
     roles: can("admins.read") || can("rbac.manage") ? (rolesRaw ?? []).map((r: any) => ({
@@ -190,6 +203,86 @@ adminRouter.get("/overview", requireAdmin, async (_req, res) => {
       createdAt: l.created_at,
     })) : [],
   });
+});
+
+adminRouter.patch("/subscriptions/:userId", requireAdmin, requirePermission("subscriptions.write"), async (req, res) => {
+  const principal = actor(res);
+  const userId = req.params.userId;
+  const planId = normalizePlanId(String(req.body?.planId ?? ""));
+  const status = String(req.body?.status ?? "active");
+  const allowedStatuses = new Set(["trialing", "active", "past_due", "grace_period", "suspended", "canceled", "free"]);
+  if (!allowedStatuses.has(status)) {
+    res.status(400).json({ detail: "Invalid subscription status" });
+    return;
+  }
+  const plan = BILLING_PLANS[planId];
+  const db = createServerSupabase();
+  const { data: before } = await db
+    .from("user_profiles")
+    .select("tier, subscription_plan_id, subscription_status, account_status, subscription_current_period_end")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const now = new Date().toISOString();
+  const nextEnd = planId === "free" || planId === "enterprise" ? null : nextPeriodEnd();
+  const accountStatus = status === "suspended" ? "suspended" : "active";
+  const { error } = await db.from("user_profiles").update({
+    tier: plan.tier,
+    subscription_plan_id: plan.id,
+    subscription_status: status,
+    subscription_current_period_end: nextEnd,
+    subscription_grace_until: null,
+    account_status: accountStatus,
+    suspension_reason: status === "suspended" ? "Suspended by admin subscription action" : null,
+    updated_at: now,
+  }).eq("user_id", userId);
+  if (error) {
+    res.status(500).json({ detail: error.message });
+    return;
+  }
+  const { data: sub } = await db.from("subscriptions").insert({
+    user_id: userId,
+    provider: "admin",
+    plan_id: plan.id,
+    tier: plan.tier,
+    status,
+    amount_cents: plan.amountHalalas,
+    currency: "SAR",
+    current_period_end: nextEnd,
+    auto_renew: req.body?.autoRenew !== false,
+    metadata: { changed_by: principal.email, source: "admin_dashboard" },
+  }).select("id").single();
+  await Promise.all([
+    db.from("subscription_renewal_events").insert({
+      user_id: userId,
+      subscription_id: sub?.id ?? null,
+      plan_id: plan.id,
+      status: status === "suspended" ? "suspended" : "admin_changed",
+      due_at: nextEnd,
+      processed_at: now,
+      metadata: { actor: principal.email },
+    }),
+    db.from("subscription_admin_audit_logs").insert({
+      actor_user_id: principal.userId,
+      actor_email: principal.email,
+      target_user_id: userId,
+      action: "subscription.updated",
+      before_state: before ?? {},
+      after_state: { plan_id: plan.id, tier: plan.tier, status, current_period_end: nextEnd },
+      ip_address: requestIp(req),
+    }),
+  ]);
+  await writeAdminLog({
+    actor: principal,
+    action: "subscription.updated",
+    entityType: "subscription",
+    entityId: userId,
+    targetUserId: userId,
+    metadata: { planId: plan.id, status },
+    ipAddress: requestIp(req),
+    module: "subscriptions",
+  });
+  res.json({ ok: true });
 });
 
 adminRouter.patch("/users/:userId", requireAdmin, requirePermission("users.write"), async (req, res) => {

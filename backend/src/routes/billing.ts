@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { createServerSupabase } from "../lib/supabase";
-import { getBillingPlan } from "../lib/billingPlans";
+import { getBillingPlan, nextPeriodEnd } from "../lib/billingPlans";
+import { subscriptionOverview } from "../lib/subscription";
 
 type MoyasarInvoice = {
   id?: string;
@@ -79,13 +80,19 @@ async function applyPaidInvoice(invoice: MoyasarInvoice): Promise<boolean> {
     .maybeSingle();
   if (existing) return false;
 
-  const periodEnd = new Date();
-  periodEnd.setMonth(periodEnd.getMonth() + 1);
+  const periodEnd = nextPeriodEnd();
 
   const { error: profileError } = await db
     .from("user_profiles")
     .update({
       tier: plan.tier,
+      subscription_plan_id: plan.id,
+      subscription_status: "active",
+      subscription_current_period_end: periodEnd,
+      subscription_grace_until: null,
+      subscription_auto_renew: true,
+      account_status: "active",
+      suspension_reason: null,
       updated_at: new Date().toISOString(),
     })
     .eq("user_id", invoice.metadata.user_id);
@@ -97,15 +104,57 @@ async function applyPaidInvoice(invoice: MoyasarInvoice): Promise<boolean> {
     provider_invoice_id: invoice.id,
     plan_id: plan.id,
     tier: plan.tier,
-    status: "paid",
+    status: "active",
     amount_cents: plan.amountHalalas,
     currency: "SAR",
-    current_period_end: periodEnd.toISOString(),
+    current_period_end: periodEnd,
+    auto_renew: true,
+    last_payment_status: "paid",
     metadata: invoice,
   });
   if (insertError && insertError.code !== "23505") throw insertError;
+  const { data: subscription } = await db
+    .from("subscriptions")
+    .select("id")
+    .eq("provider", "moyasar")
+    .eq("provider_invoice_id", invoice.id)
+    .maybeSingle();
+  await Promise.all([
+    db.from("subscription_payment_events").insert({
+      user_id: invoice.metadata.user_id,
+      subscription_id: subscription?.id ?? null,
+      provider: "moyasar",
+      provider_event_id: invoice.id,
+      provider_invoice_id: invoice.id,
+      plan_id: plan.id,
+      status: "paid",
+      amount_cents: plan.amountHalalas,
+      currency: "SAR",
+      metadata: invoice,
+    }),
+    db.from("subscription_renewal_events").insert({
+      user_id: invoice.metadata.user_id,
+      subscription_id: subscription?.id ?? null,
+      plan_id: plan.id,
+      status: "renewed",
+      due_at: periodEnd,
+      processed_at: new Date().toISOString(),
+      metadata: { provider_invoice_id: invoice.id },
+    }),
+  ]);
   return !insertError;
 }
+
+billingRouter.get("/subscription", requireAuth, async (_req, res) => {
+  const userId = res.locals.userId as string;
+  try {
+    res.json(await subscriptionOverview(userId));
+  } catch (error) {
+    res.status(500).json({
+      detail: error instanceof Error ? error.message : "Subscription lookup failed",
+    });
+  }
+});
 
 billingRouter.post("/moyasar/checkout", requireAuth, async (req, res) => {
   const secretKey = moyasarSecret();
@@ -119,7 +168,7 @@ billingRouter.post("/moyasar/checkout", requireAuth, async (req, res) => {
 
   const plan = getBillingPlan(String(req.body?.plan ?? ""));
   const locale = String(req.body?.locale ?? "ar") === "en" ? "en" : "ar";
-  if (!plan || plan.id === "explorer" || plan.id === "enterprise") {
+  if (!plan || plan.id === "free" || plan.id === "enterprise") {
     res.status(400).json({ code: "invalid_plan", detail: "Invalid paid plan." });
     return;
   }
