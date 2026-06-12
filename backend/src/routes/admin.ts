@@ -2,9 +2,11 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import {
   getUserById,
+  hasPermission,
   listAuthUsers,
   requestIp,
   requireAdmin,
+  requirePermission,
   requireSuperAdmin,
   type AdminPrincipal,
   writeAdminLog,
@@ -32,11 +34,12 @@ adminRouter.use(requireAuth);
 adminRouter.get("/overview", requireAdmin, async (_req, res) => {
   const db = createServerSupabase();
   const principal = actor(res);
+  const can = (permission: string) => hasPermission(principal, permission);
   const authUsers = await listAuthUsers();
 
   const { data: profilesRaw } = await db
     .from("user_profiles")
-    .select("user_id, display_name, organisation, role, account_status, message_credits_used, tier, suspension_reason, updated_at");
+    .select("user_id, display_name, organisation, role, account_status, admin_access_enabled, message_credits_used, tier, suspension_reason, updated_at");
   const profiles = profilesRaw ?? [];
   const profileByUserId = new Map<string, any>(profiles.map((p: any) => [p.user_id, p]));
 
@@ -70,9 +73,10 @@ adminRouter.get("/overview", requireAdmin, async (_req, res) => {
         tier: p.tier ?? "Free",
         messageCreditsUsed: p.message_credits_used ?? 0,
         role: p.role ?? "user",
-        accountStatus: p.account_status ?? "active",
-        createdAt: u.createdAt,
-      };
+      accountStatus: p.account_status ?? "active",
+      adminAccessEnabled: p.admin_access_enabled !== false,
+      createdAt: u.createdAt,
+    };
     })
     .filter((u) => principal.role === "super_admin" || u.role !== "super_admin");
 
@@ -84,6 +88,7 @@ adminRouter.get("/overview", requireAdmin, async (_req, res) => {
       displayName: u.displayName,
       role: u.role,
       accountStatus: u.accountStatus,
+      adminAccessEnabled: u.adminAccessEnabled,
       suspensionReason: profileByUserId.get(u.id)?.suspension_reason ?? null,
       updatedAt: profileByUserId.get(u.id)?.updated_at ?? "",
     }));
@@ -93,6 +98,17 @@ adminRouter.get("/overview", requireAdmin, async (_req, res) => {
     .select("*")
     .order("created_at", { ascending: false })
     .limit(25);
+  const [{ data: rolesRaw }, { data: permissionsRaw }, { data: assignmentsRaw }, { data: loginEventsRaw }, { data: activityRaw }, { data: aiUsageRaw }, { data: supportRaw }, { data: contactRaw }] =
+    await Promise.all([
+      db.from("admin_roles").select("id, slug, name, description, is_system, admin_role_permissions(permission_id)").order("name"),
+      db.from("admin_permissions").select("*").order("category"),
+      db.from("admin_role_assignments").select("id, admin_user_id, role_id, assigned_at, expires_at"),
+      db.from("admin_login_events").select("*").order("created_at", { ascending: false }).limit(50),
+      db.from("admin_activity_events").select("*").order("created_at", { ascending: false }).limit(100),
+      db.from("ai_usage_events").select("*").order("created_at", { ascending: false }).limit(100),
+      db.from("support_requests").select("*").order("created_at", { ascending: false }).limit(50),
+      db.from("contact_messages").select("*").order("created_at", { ascending: false }).limit(50),
+    ]);
 
   const tierMap: Record<string, number> = {};
   for (const p of profiles as any[]) {
@@ -125,9 +141,46 @@ adminRouter.get("/overview", requireAdmin, async (_req, res) => {
         paidSubs.length > 0 ? Math.round(totalRevenueCents / paidSubs.length) : 0,
       currency: "SAR",
     },
-    recentUsers,
-    admins,
-    auditLogs: (auditLogsRaw ?? []).map((l: any) => ({
+    recentUsers: can("users.read") ? recentUsers : [],
+    admins: can("admins.read") ? admins : [],
+    roles: can("admins.read") || can("rbac.manage") ? (rolesRaw ?? []).map((r: any) => ({
+      id: r.id,
+      slug: r.slug,
+      name: r.name,
+      description: r.description ?? null,
+      isSystem: r.is_system === true,
+      permissions: (r.admin_role_permissions ?? []).map((p: any) => p.permission_id),
+    })) : [],
+    permissions: can("rbac.manage") ? permissionsRaw ?? [] : [],
+    roleAssignments: can("admins.read") || can("rbac.manage") ? assignmentsRaw ?? [] : [],
+    loginEvents: can("audit.read") ? (loginEventsRaw ?? []).map((event: any) => ({
+      id: event.id,
+      adminUserId: event.admin_user_id,
+      email: event.email,
+      eventType: event.event_type,
+      success: event.success,
+      ipAddress: event.ip_address,
+      userAgent: event.user_agent,
+      createdAt: event.created_at,
+    })) : [],
+    activityEvents: can("audit.read") ? (activityRaw ?? []).map((event: any) => ({
+      id: event.id,
+      adminUserId: event.admin_user_id,
+      email: event.email,
+      action: event.action,
+      module: event.module,
+      targetType: event.target_type,
+      targetId: event.target_id,
+      status: event.status,
+      ipAddress: event.ip_address,
+      userAgent: event.user_agent,
+      metadata: event.metadata ?? {},
+      createdAt: event.created_at,
+    })) : [],
+    aiUsageEvents: can("ai_usage.read") ? aiUsageRaw ?? [] : [],
+    supportRequests: can("support.manage") ? supportRaw ?? [] : [],
+    contactMessages: can("support.manage") ? contactRaw ?? [] : [],
+    auditLogs: can("audit.read") ? (auditLogsRaw ?? []).map((l: any) => ({
       id: l.id,
       actorEmail: l.actor_email ?? null,
       action: l.action,
@@ -135,11 +188,11 @@ adminRouter.get("/overview", requireAdmin, async (_req, res) => {
       entityId: l.entity_id ?? null,
       metadata: l.metadata ?? {},
       createdAt: l.created_at,
-    })),
+    })) : [],
   });
 });
 
-adminRouter.patch("/users/:userId", requireAdmin, async (req, res) => {
+adminRouter.patch("/users/:userId", requireAdmin, requirePermission("users.write"), async (req, res) => {
   const principal = actor(res);
   const userId = req.params.userId;
   if (principal.userId === userId) {
@@ -175,6 +228,9 @@ adminRouter.patch("/users/:userId", requireAdmin, async (req, res) => {
       status === "suspended"
         ? String(req.body.suspensionReason ?? "").trim() || "Suspended by admin"
         : null;
+  }
+  if ("adminAccessEnabled" in req.body) {
+    update.admin_access_enabled = req.body.adminAccessEnabled === true;
   }
   if ("tier" in req.body) {
     const tier = String(req.body.tier ?? "Free");
@@ -218,7 +274,7 @@ adminRouter.patch("/users/:userId", requireAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-adminRouter.post("/accounts", requireSuperAdmin, async (req, res) => {
+adminRouter.post("/accounts", requireSuperAdmin, requirePermission("admins.write"), async (req, res) => {
   const principal = actor(res);
   const email = String(req.body?.email ?? "").trim().toLowerCase();
   const displayName = String(req.body?.displayName ?? "").trim() || null;
@@ -271,7 +327,7 @@ adminRouter.post("/accounts", requireSuperAdmin, async (req, res) => {
   res.status(201).json({ id: data.user.id, email, role });
 });
 
-adminRouter.patch("/accounts/:userId", requireSuperAdmin, async (req, res) => {
+adminRouter.patch("/accounts/:userId", requireSuperAdmin, requirePermission("admins.write"), async (req, res) => {
   const principal = actor(res);
   const userId = req.params.userId;
   if (principal.userId === userId) {
@@ -302,6 +358,9 @@ adminRouter.patch("/accounts/:userId", requireSuperAdmin, async (req, res) => {
       status === "suspended"
         ? String(req.body.suspensionReason ?? "").trim() || "Administrative suspension"
         : null;
+  }
+  if ("adminAccessEnabled" in req.body) {
+    update.admin_access_enabled = req.body.adminAccessEnabled === true;
   }
   if (String(req.body?.password ?? "").length > 0) {
     const password = String(req.body.password);
@@ -342,7 +401,7 @@ adminRouter.patch("/accounts/:userId", requireSuperAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-adminRouter.delete("/accounts/:userId", requireSuperAdmin, async (req, res) => {
+adminRouter.delete("/accounts/:userId", requireSuperAdmin, requirePermission("admins.delete"), async (req, res) => {
   const principal = actor(res);
   const userId = req.params.userId;
   if (principal.userId === userId) {
@@ -364,4 +423,109 @@ adminRouter.delete("/accounts/:userId", requireSuperAdmin, async (req, res) => {
     return;
   }
   res.json({ ok: true });
+});
+
+adminRouter.put("/accounts/:userId/roles", requireSuperAdmin, requirePermission("rbac.manage"), async (req, res) => {
+  const principal = actor(res);
+  const userId = req.params.userId;
+  if (principal.userId === userId) {
+    res.status(400).json({ detail: "Super admins cannot change their own role assignments here." });
+    return;
+  }
+  const roleIds: string[] = Array.isArray(req.body?.roleIds)
+    ? req.body.roleIds.filter((id: unknown): id is string => typeof id === "string")
+    : [];
+  const db = createServerSupabase();
+  const { error: deleteError } = await db
+    .from("admin_role_assignments")
+    .delete()
+    .eq("admin_user_id", userId);
+  if (deleteError) {
+    res.status(500).json({ detail: deleteError.message });
+    return;
+  }
+  if (roleIds.length > 0) {
+    const { error: insertError } = await db.from("admin_role_assignments").insert(
+      roleIds.map((roleId: string) => ({
+        admin_user_id: userId,
+        role_id: roleId,
+        assigned_by: principal.userId,
+      })),
+    );
+    if (insertError) {
+      res.status(500).json({ detail: insertError.message });
+      return;
+    }
+  }
+  await writeAdminLog({
+    actor: principal,
+    action: "admin_roles.assigned",
+    entityType: "admin_role_assignments",
+    entityId: userId,
+    targetUserId: userId,
+    metadata: { roleIds },
+    ipAddress: requestIp(req),
+    userAgent: req.headers["user-agent"]?.toString() ?? null,
+    module: "rbac",
+  });
+  res.json({ ok: true });
+});
+
+adminRouter.post("/accounts/:userId/password-reset", requireSuperAdmin, requirePermission("admins.write"), async (req, res) => {
+  const principal = actor(res);
+  const user = await getUserById(req.params.userId);
+  if (!user?.email) {
+    res.status(404).json({ detail: "Admin account not found" });
+    return;
+  }
+  const db = createServerSupabase();
+  const { data, error } = await db.auth.admin.generateLink({
+    type: "recovery",
+    email: user.email,
+  });
+  if (error) {
+    res.status(500).json({ detail: error.message });
+    return;
+  }
+  await db.from("admin_login_events").insert({
+    admin_user_id: req.params.userId,
+    email: user.email,
+    event_type: "password_reset_requested",
+    success: true,
+    ip_address: requestIp(req),
+    user_agent: req.headers["user-agent"]?.toString() ?? null,
+  });
+  await writeAdminLog({
+    actor: principal,
+    action: "admin_password_reset.requested",
+    entityType: "user",
+    entityId: req.params.userId,
+    targetUserId: req.params.userId,
+    metadata: { email: user.email },
+    ipAddress: requestIp(req),
+    module: "admin-security",
+  });
+  res.json({ actionLink: data.properties?.action_link ?? null });
+});
+
+adminRouter.post("/accounts/:userId/logout", requireSuperAdmin, requirePermission("admins.write"), async (req, res) => {
+  const principal = actor(res);
+  const db = createServerSupabase();
+  await db.from("admin_login_events").insert({
+    admin_user_id: req.params.userId,
+    event_type: "session_revoked",
+    success: true,
+    ip_address: requestIp(req),
+    user_agent: req.headers["user-agent"]?.toString() ?? null,
+  });
+  await writeAdminLog({
+    actor: principal,
+    action: "admin_session.logout_requested",
+    entityType: "user",
+    entityId: req.params.userId,
+    targetUserId: req.params.userId,
+    ipAddress: requestIp(req),
+    module: "admin-security",
+  });
+  res.json({ ok: true, detail: "Session logout has been logged. Supabase token revocation requires dashboard/API session controls." });
 });

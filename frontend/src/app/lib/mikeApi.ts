@@ -479,6 +479,49 @@ export type AdminOverview = {
         | "aiCreditsUsed",
         number
     >;
+    roles: {
+        id: string;
+        slug: string;
+        name: string;
+        description: string | null;
+        isSystem: boolean;
+        permissions: string[];
+    }[];
+    permissions: { id: string; category: string; description: string }[];
+    roleAssignments: {
+        id: string;
+        admin_user_id: string;
+        role_id: string;
+        assigned_at: string;
+        expires_at: string | null;
+    }[];
+    loginEvents: {
+        id: string;
+        adminUserId: string | null;
+        email: string | null;
+        eventType: string;
+        success: boolean;
+        ipAddress: string | null;
+        userAgent: string | null;
+        createdAt: string;
+    }[];
+    activityEvents: {
+        id: string;
+        adminUserId: string | null;
+        email: string | null;
+        action: string;
+        module: string;
+        targetType: string | null;
+        targetId: string | null;
+        status: string;
+        ipAddress: string | null;
+        userAgent: string | null;
+        metadata: Record<string, unknown>;
+        createdAt: string;
+    }[];
+    aiUsageEvents: Record<string, unknown>[];
+    supportRequests: Record<string, unknown>[];
+    contactMessages: Record<string, unknown>[];
     tiers: { tier: string; count: number }[];
     financials: {
         paidSubscriptions: number;
@@ -499,6 +542,7 @@ export type AdminOverview = {
         messageCreditsUsed: number;
         role: AdminRole;
         accountStatus: AccountStatus;
+        adminAccessEnabled: boolean;
         createdAt: string;
     }[];
     admins: {
@@ -507,6 +551,7 @@ export type AdminOverview = {
         displayName: string | null;
         role: AdminRole;
         accountStatus: AccountStatus;
+        adminAccessEnabled: boolean;
         suspensionReason: string | null;
         updatedAt: string;
     }[];
@@ -561,6 +606,7 @@ export async function updateAdminAccount(
         password?: string;
         role?: AdminRole;
         accountStatus?: "active" | "suspended";
+        adminAccessEnabled?: boolean;
         suspensionReason?: string;
     },
 ): Promise<void> {
@@ -573,6 +619,32 @@ export async function updateAdminAccount(
 
 export async function deleteAdminAccount(userId: string): Promise<void> {
     return apiRequest<void>(`/admin/accounts/${userId}`, { method: "DELETE" });
+}
+
+export async function assignAdminRoles(
+    userId: string,
+    roleIds: string[],
+): Promise<void> {
+    return apiRequest<void>(`/admin/accounts/${userId}/roles`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roleIds }),
+    });
+}
+
+export async function requestAdminPasswordReset(
+    userId: string,
+): Promise<{ actionLink: string | null }> {
+    return apiRequest<{ actionLink: string | null }>(
+        `/admin/accounts/${userId}/password-reset`,
+        { method: "POST" },
+    );
+}
+
+export async function requestAdminLogout(userId: string): Promise<void> {
+    return apiRequest<void>(`/admin/accounts/${userId}/logout`, {
+        method: "POST",
+    });
 }
 
 export type MikeDocumentVersion = DocumentVersion;
