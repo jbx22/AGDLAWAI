@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/db";
-import { adminIp, requireSuperAdmin, writeAdminLog } from "@/lib/admin";
+import { adminIp, getUserById, requireSuperAdmin, writeAdminLog } from "@/lib/admin";
 import { errorToResponse } from "@/lib/http-error";
 
 const ADMIN_ROLES = new Set(["user", "admin", "super_admin"]);
 const STATUSES = new Set(["active", "suspended"]);
 
 async function getTarget(userId: string) {
-  const { data: user } = await supabase
-    .from("users")
-    .select("id, email, display_name")
-    .eq("id", userId)
-    .maybeSingle();
+  const user = await getUserById(userId);
   if (!user) return null;
 
   const { data: profile } = await supabase
@@ -23,7 +19,7 @@ async function getTarget(userId: string) {
   return {
     id: user.id,
     email: user.email ?? "",
-    displayName: user.display_name,
+    displayName: user.displayName,
     role: profile?.role ?? "user",
     accountStatus: profile?.account_status ?? "active",
   };
@@ -106,11 +102,10 @@ export async function PATCH(
       userUpdate.password_changed = true;
     }
 
-    if (Object.keys(userUpdate).length > 0) {
-      await supabase
-        .from("users")
-        .update({ updated_at: new Date().toISOString(), ...userUpdate })
-        .eq("id", userId);
+    if ("display_name" in userUpdate) {
+      await supabase.auth.admin.updateUserById(userId, {
+        user_metadata: { display_name: userUpdate.display_name },
+      });
     }
     if (Object.keys(profileUpdate).length > 0) {
       await supabase

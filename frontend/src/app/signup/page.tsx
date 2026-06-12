@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { signIn, useSession } from "next-auth/react";
+import { getProviders, signIn, useSession } from "next-auth/react";
 import { CheckCircle2 } from "lucide-react";
+import { AuthDivider, GoogleAuthButton } from "@/app/components/auth/GoogleAuthButton";
 import { SiteLogo } from "@/components/site-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,6 +82,8 @@ export default function SignupPage() {
     const [name, setName] = useState("");
     const [organisation, setOrganisation] = useState("");
     const [loading, setLoading] = useState(false);
+    const [googleLoading, setGoogleLoading] = useState(false);
+    const [googleEnabled, setGoogleEnabled] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
 
@@ -99,6 +102,12 @@ export default function SignupPage() {
         }
     }, [pathname]);
 
+    useEffect(() => {
+        getProviders()
+            .then((providers) => setGoogleEnabled(!!providers?.google))
+            .catch(() => setGoogleEnabled(false));
+    }, []);
+
     const locale =
         pathname === "/en" ||
         pathname?.startsWith("/en/") ||
@@ -109,6 +118,9 @@ export default function SignupPage() {
     const textAlign = locale === "ar" ? "text-right" : "text-left";
     const loginHref = locale === "ar" ? "/login" : "/en/login";
     const t = copy[locale];
+    const googleLabel = locale === "ar" ? "Sign up with Google" : "Sign up with Google";
+    const googleLoadingLabel = locale === "ar" ? "Connecting..." : "Connecting...";
+    const dividerLabel = locale === "ar" ? "or" : "or";
 
     const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -156,6 +168,17 @@ export default function SignupPage() {
         }
     };
 
+    const handleGoogleSignup = async () => {
+        setGoogleLoading(true);
+        setError(null);
+        try {
+            await signIn("google", { callbackUrl });
+        } catch {
+            setError(t.failed);
+            setGoogleLoading(false);
+        }
+    };
+
     if (success) {
         return (
             <div className="min-h-dvh bg-white flex items-start justify-center px-6 pt-32 md:pt-40 pb-10 relative" dir={dir} lang={locale}>
@@ -191,6 +214,19 @@ export default function SignupPage() {
                             <span className="px-3 py-1 bg-white rounded-sm shadow-sm text-gray-900">{t.active}</span>
                         </div>
                     </div>
+
+                    {googleEnabled && (
+                        <>
+                            <GoogleAuthButton
+                                label={googleLabel}
+                                loadingLabel={googleLoadingLabel}
+                                loading={googleLoading}
+                                disabled={loading}
+                                onClick={handleGoogleSignup}
+                            />
+                            <AuthDivider label={dividerLabel} />
+                        </>
+                    )}
 
                     <form onSubmit={handleSignup} className="space-y-4">
                         <div className={textAlign}>

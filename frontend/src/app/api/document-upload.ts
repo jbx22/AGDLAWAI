@@ -6,6 +6,7 @@ import { uploadFile, storageKey } from "@/lib/storage";
 import { convertedPdfKey, docxToPdf } from "@/lib/convert";
 
 const ALLOWED_TYPES = new Set(["pdf", "docx", "doc"]);
+const MAX_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024;
 
 type UploadedDocument = typeof documents.$inferSelect & {
   storage_path: string;
@@ -21,6 +22,12 @@ export async function uploadDocumentForUser(
   const maybeFile = form.get("file");
   if (!(maybeFile instanceof File)) {
     return NextResponse.json({ detail: "file is required" }, { status: 400 });
+  }
+  if (maybeFile.size > MAX_UPLOAD_SIZE_BYTES) {
+    return NextResponse.json(
+      { detail: "File is too large. Maximum upload size is 100 MB." },
+      { status: 413 },
+    );
   }
 
   const filename = sanitizeFilename(maybeFile.name);

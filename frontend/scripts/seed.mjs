@@ -8,8 +8,8 @@
  * Usage:  node scripts/seed.mjs
  */
 
-import crypto from 'node:crypto';
 import postgres from 'postgres';
+import { createClient } from '@supabase/supabase-js';
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,11 +20,29 @@ const ENV_FILE = join(FRONTEND_DIR, '.env.local');
 
 // Load DATABASE_URL from .env.local
 let DATABASE_URL = process.env.DATABASE_URL;
+let SUPABASE_URL = process.env.SUPABASE_URL;
+let SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY;
 if (!DATABASE_URL && existsSync(ENV_FILE)) {
   const content = readFileSync(ENV_FILE, 'utf8');
-  for (const line of content.split('\n')) {
+  for (const line of content.split(/\r?\n/)) {
     const m = line.match(/^DATABASE_URL=(.+)$/);
-    if (m) { DATABASE_URL = m[1]; break; }
+    if (m) {
+      DATABASE_URL = m[1].trim().replace(/^["']|["']$/g, '');
+      break;
+    }
+  }
+}
+if (existsSync(ENV_FILE)) {
+  const content = readFileSync(ENV_FILE, 'utf8');
+  for (const line of content.split(/\r?\n/)) {
+    const m = line.match(/^([A-Z0-9_]+)=(.+)$/);
+    if (!m) continue;
+    const key = m[1];
+    const value = m[2].trim().replace(/^["']|["']$/g, '');
+    if (key === 'SUPABASE_URL' && !SUPABASE_URL) SUPABASE_URL = value;
+    if (key === 'SUPABASE_SECRET_KEY' && !SUPABASE_SECRET_KEY) {
+      SUPABASE_SECRET_KEY = value;
+    }
   }
 }
 
@@ -174,10 +192,6 @@ const DEMO_ACCOUNTS = process.env.SEED_DEMO_ACCOUNTS === "true" ? [
   },
   ] : [];
 
-function hashPassword(password, salt) {
-  return crypto.createHash('sha256').update(password + salt).digest('hex');
-}
-
 async function main() {
   console.log('╔══════════════════════════════════════════╗');
   console.log('║   JBL BIZ LAW — Database Seeding        ║');
@@ -211,21 +225,51 @@ async function main() {
   }
 
   console.log('\nSeeding demo accounts...');
-  for (const account of DEMO_ACCOUNTS) {
-    const salt = crypto.randomBytes(16).toString('hex');
-    const passwordHash = hashPassword(account.password, salt);
+  const supabase =
+    DEMO_ACCOUNTS.length > 0 && SUPABASE_URL && SUPABASE_SECRET_KEY
+      ? createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+            detectSessionInUrl: false,
+          },
+        })
+      : null;
 
+  if (DEMO_ACCOUNTS.length > 0 && !supabase) {
+    console.error(
+      'SEED_DEMO_ACCOUNTS=true requires SUPABASE_URL and SUPABASE_SECRET_KEY.',
+    );
+    process.exit(1);
+  }
+
+  for (const account of DEMO_ACCOUNTS) {
     try {
-      const [user] = await sql`
-        INSERT INTO users (email, password_hash, password_salt, display_name)
-        VALUES (${account.email}, ${passwordHash}, ${salt}, ${account.displayName})
-        ON CONFLICT (email) DO UPDATE SET
-          password_hash = EXCLUDED.password_hash,
-          password_salt = EXCLUDED.password_salt,
-          display_name = EXCLUDED.display_name,
-          updated_at = NOW()
-        RETURNING id
-      `;
+      const { data: existingUsers } = await supabase.auth.admin.listUsers();
+      let user = existingUsers?.users?.find(
+        (u) => u.email?.toLowerCase() === account.email,
+      );
+
+      if (!user) {
+        const { data, error } = await supabase.auth.admin.createUser({
+          email: account.email,
+          password: account.password,
+          email_confirm: true,
+          user_metadata: { display_name: account.displayName },
+        });
+        if (error || !data.user) throw error ?? new Error('User was not created');
+        user = data.user;
+      } else {
+        const { data, error } = await supabase.auth.admin.updateUserById(
+          user.id,
+          {
+            password: account.password,
+            user_metadata: { display_name: account.displayName },
+          },
+        );
+        if (error || !data.user) throw error ?? new Error('User was not updated');
+        user = data.user;
+      }
 
       await sql`
         INSERT INTO user_profiles (

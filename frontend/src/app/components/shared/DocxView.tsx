@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { BizLawIcon } from "@/components/chat/mike-icon";
 import { useFetchDocxBytes } from "@/app/hooks/useFetchDocxBytes";
-import { getSession } from "next-auth/react";
+import { getAuthHeaders } from "@/app/lib/authToken";
 import {
     clearDocxQuoteHighlights,
     highlightDocxQuote,
@@ -144,8 +144,7 @@ async function tagWIdsOnRenderedDom(
     versionId: string | null | undefined,
 ): Promise<void> {
     try {
-        const session = await getSession();
-        const token = btoa(JSON.stringify({ userId: session?.user?.id, email: session?.user?.email }));
+        const authHeaders = await getAuthHeaders();
         const apiBase =
             process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
         const qs = versionId
@@ -153,7 +152,7 @@ async function tagWIdsOnRenderedDom(
             : "";
         const resp = await fetch(
             `${apiBase}/single-documents/${documentId}/tracked-change-ids${qs}`,
-            { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+            { headers: authHeaders },
         );
         if (!resp.ok) {
             console.warn(

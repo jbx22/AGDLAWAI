@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getSession } from "next-auth/react";
+import { getAuthHeaders } from "@/app/lib/authToken";
 import type { MikeEditAnnotation } from "../shared/types";
 
 function normalizeText(s: string) {
@@ -240,17 +240,14 @@ export function EditCard({
             console.error("[EditCard] optimistic update threw", e);
         }
         try {
-            const session = await getSession();
-            const token = btoa(JSON.stringify({ userId: session?.user?.id, email: session?.user?.email }));
+            const authHeaders = await getAuthHeaders();
             const apiBase =
                 process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
             const resp = await fetch(
                 `${apiBase}/single-documents/${annotation.document_id}/edits/${annotation.edit_id}/${verb}`,
                 {
                     method: "POST",
-                    headers: token
-                        ? { Authorization: `Bearer ${token}` }
-                        : undefined,
+                    headers: authHeaders,
                 },
             );
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

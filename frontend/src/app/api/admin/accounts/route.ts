@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/db";
-import { adminIp, requireSuperAdmin, writeAdminLog } from "@/lib/admin";
+import { adminIp, getUsersByIds, requireSuperAdmin, writeAdminLog } from "@/lib/admin";
 import { errorToResponse } from "@/lib/http-error";
 
 const DEFAULT_TABULAR_MODEL = "deepseek-v4-flash";
@@ -17,12 +17,10 @@ export async function GET() {
       .order("updated_at", { ascending: false });
 
     const userIds = (profiles ?? []).map((p) => p.user_id);
-    const { data: userData } = userIds.length
-      ? await supabase.from("users").select("id, email, display_name").in("id", userIds)
-      : { data: [] as any[] };
+    const userData = await getUsersByIds(userIds);
 
     const usersById: Record<string, any> = {};
-    for (const u of userData ?? []) {
+    for (const u of userData) {
       usersById[u.id] = u;
     }
 
@@ -31,11 +29,11 @@ export async function GET() {
       return {
         id: p.user_id,
         email: u.email ?? "",
-        displayName: u.display_name ?? null,
+        displayName: u.displayName ?? null,
         role: p.role,
         accountStatus: p.account_status,
         suspensionReason: p.suspension_reason ?? null,
-        createdAt: u.created_at ?? "",
+        createdAt: u.createdAt ?? "",
         updatedAt: p.updated_at ?? "",
       };
     });

@@ -7,10 +7,8 @@
  * .env.local as DATABASE_URL, then this script will push the Drizzle schema.
  *
  * Supabase path:
- *   Project Settings > Database > Connection string
- *
- * For Vercel/serverless, prefer the transaction pooler URL:
- *   postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?sslmode=require
+ *   Project Settings > Database > Connection string, or run
+ *   supabase link --project-ref <project-ref>.
  */
 
 import { execSync } from "node:child_process";
@@ -74,15 +72,23 @@ async function main() {
   console.log("DATABASE_URL found:");
   console.log(`  ${maskUrl(databaseUrl)}`);
 
-  console.log("\nPushing Drizzle schema to Supabase Postgres...");
-  run("npx drizzle-kit push", { env: { ...process.env, ...env } });
+  console.log("\nPushing Supabase migrations...");
+  if (env.DATABASE_URL) {
+    run(`supabase --workdir .. db push --db-url "${databaseUrl}"`, {
+      env: { ...process.env, ...env },
+    });
+  } else {
+    run("supabase --workdir .. db push", { env: { ...process.env, ...env } });
+  }
 
   console.log("\nDatabase setup complete.");
   console.log("Next steps:");
   console.log("  1. Set AUTH_SECRET: npx auth secret");
-  console.log("  2. Set SUPABASE_URL and SUPABASE_SECRET_KEY");
-  console.log("  3. Set R2 credentials for uploads");
-  console.log("  4. Run: npm run dev");
+  console.log("  2. Set SUPABASE_URL, SUPABASE_SECRET_KEY, and NEXT_PUBLIC_SUPABASE_*");
+  console.log("  3. Set USER_API_KEYS_ENCRYPTION_SECRET");
+  console.log("  4. Set R2 credentials for uploads");
+  console.log("  5. Run: npm run db:seed");
+  console.log("  6. Run: npm run dev");
 }
 
 main().catch((err) => {

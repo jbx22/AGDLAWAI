@@ -8,21 +8,21 @@ import {
   boolean,
   uniqueIndex,
   index,
-  check,
   foreignKey,
+  pgSchema,
 } from "drizzle-orm/pg-core";
 
 // ---------------------------------------------------------------------------
-// Auth.js users table
+// Supabase Auth users table
 // ---------------------------------------------------------------------------
-export const users = pgTable("users", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  email: text("email").unique().notNull(),
-  password_hash: text("password_hash").notNull(),
-  password_salt: text("password_salt").notNull(),
-  display_name: text("display_name"),
+export const authSchema = pgSchema("auth");
+
+export const users = authSchema.table("users", {
+  id: uuid("id").primaryKey(),
+  email: text("email"),
+  raw_user_meta_data: jsonb("raw_user_meta_data"),
   created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }),
 });
 
 // ---------------------------------------------------------------------------
@@ -106,7 +106,7 @@ export const subscriptions = pgTable(
   },
   (table) => [
     index("subscriptions_user_idx").on(table.user_id, table.status),
-    index("subscriptions_provider_invoice_idx").on(table.provider, table.provider_invoice_id),
+    uniqueIndex("subscriptions_provider_invoice_unique").on(table.provider, table.provider_invoice_id),
   ]
 );
 

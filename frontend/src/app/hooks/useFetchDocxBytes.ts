@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getSession } from "next-auth/react";
+import { getAuthHeaders } from "@/app/lib/authToken";
 
 export interface FetchDocxResult {
     bytes: ArrayBuffer | null;
@@ -87,12 +87,11 @@ export function useFetchDocxBytes(
         const pending =
             inFlight.get(key) ??
             (async () => {
-                const session = await getSession();
-                const token = btoa(JSON.stringify({ userId: session?.user?.id, email: session?.user?.email }));
+                const authHeaders = await getAuthHeaders();
                 // Stream bytes through the backend (avoids CORS on R2
                 // signed URLs).
                 const bin = await fetch(url, {
-                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                    headers: authHeaders,
                 });
                 if (!bin.ok) throw new Error(`HTTP ${bin.status}`);
                 const buf = await bin.arrayBuffer();

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>AGDLAWAI Supabase Integration Security Report</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; max-width: 920px; margin: 40px auto; padding: 0 24px; color: #172033; }
+    h1, h2, h3 { line-height: 1.2; }
+    code { background: #f3f5f8; padding: 2px 5px; border-radius: 4px; }
+    li { margin: 4px 0; }
+    .status { border-left: 4px solid #217a48; padding: 8px 16px; background: #f1fbf5; }
+    .blocked { border-left: 4px solid #a45b00; padding: 8px 16px; background: #fff7ed; }
+  </style>
+</head>
+<body>
+  <h1>AGDLAWAI Supabase Integration Security Report</h1>
+  <p><strong>Date:</strong> 2026-06-12<br><strong>Branch:</strong> <code>codex/supabase-auth-integration</code></p>
+
+  <h2>Scope</h2>
+  <p>Reviewed the Supabase/Auth integration changes for AGDLAWAI, including database schema migration, auth/admin flows, payment callback handling, document upload/export routes, API-key storage, and dependency advisories.</p>
+
+  <h2>Fixed Findings</h2>
+  <div class="status">
+    <h3>Reserved admin email self-registration</h3>
+    <p><code>frontend/src/app/api/auth/signup/route.ts</code> blocks public signup for emails reserved by <code>SUPER_ADMIN_EMAILS</code> or <code>ADMIN_EMAILS</code>.</p>
+    <h3>Admin mutation of environment-derived admins</h3>
+    <p><code>frontend/src/app/api/admin/users/[userId]/route.ts</code> resolves target effective role from both environment and profile role before mutation.</p>
+    <h3>Moyasar invoice replay and mismatch acceptance</h3>
+    <p><code>frontend/src/app/api/billing/moyasar/callback/route.ts</code> verifies paid status, plan amount, SAR currency, and invoice idempotency. The schema and Supabase migration add unique invoice protection.</p>
+    <h3>ZIP export path traversal filenames</h3>
+    <p>Frontend and backend ZIP download routes sanitize archive entry names and deduplicate collisions.</p>
+    <h3>Unbounded frontend upload buffering</h3>
+    <p><code>frontend/src/app/api/document-upload.ts</code> rejects files larger than 100 MB before buffering. Local Supabase storage config is aligned to <code>100MiB</code>.</p>
+  </div>
+
+  <h2>Supabase Integration Status</h2>
+  <p>Hosted project <code>AGDLAWAI</code> was created in org <code>fleipodaklddnelgbehb</code>, region <code>eu-central-1</code>. Project ref: <code>xritxanibwvcsucbbykf</code>.</p>
+  <div class="status">
+    <p>The local Supabase config is linked, the migration was applied, and ignored <code>frontend/.env.local</code> contains the real local values. The working transaction pooler host is <code>aws-1-eu-central-1.pooler.supabase.com</code>.</p>
+    <p>Remote checks verified RLS on all public app tables, no direct sampled table grants for <code>anon</code> or <code>authenticated</code>, service-role backend access, private trigger function permissions, enabled auth trigger, and auth-owned foreign keys to <code>auth.users</code>.</p>
+    <p>Supabase advisors at warn level report no security or performance issues. Seed inserted 6 system workflows.</p>
+  </div>
+
+  <h2>Dependency Advisories</h2>
+  <p>Frontend audit reports 19 advisories: 13 moderate and 6 high. Backend audit reports 2 advisories: 1 moderate and 1 high. Some suggested fixes require semver-major downgrades or package shifts and were not force-applied in this pass.</p>
+
+  <h2>Validation Commands</h2>
+  <ul>
+    <li><code>cd frontend &amp;&amp; npm install</code>: passed.</li>
+    <li><code>cd frontend &amp;&amp; npx tsc --noEmit</code>: passed.</li>
+    <li><code>cd frontend &amp;&amp; npm run lint</code>: passed with 153 warnings and 0 errors.</li>
+    <li><code>cd frontend &amp;&amp; npm run build</code>: passed.</li>
+    <li><code>cd backend &amp;&amp; npm install</code>: passed.</li>
+    <li><code>cd backend &amp;&amp; npm run build</code>: passed.</li>
+    <li><code>cd frontend &amp;&amp; npm run db:seed</code>: passed; 6 system workflows inserted.</li>
+    <li><code>supabase db push --linked</code>: passed; migration applied.</li>
+    <li><code>supabase db advisors --linked --type security --level warn --fail-on none</code>: passed; no issues found.</li>
+    <li><code>supabase db advisors --linked --type performance --level warn --fail-on none</code>: passed; no issues found.</li>
+    <li><code>Invoke-WebRequest http://localhost:3000/api/health</code>: passed with HTTP 200.</li>
+    <li><code>Invoke-WebRequest http://localhost:3000/signup</code>: passed with HTTP 200.</li>
+    <li><code>npm audit --json</code> in frontend/backend: completed with advisories.</li>
+  </ul>
+
+  <h2>Remaining Work</h2>
+  <ul>
+    <li>Populate real secrets only in local/deployment environment stores.</li>
+    <li>Choose and test dependency remediation for <code>next-pwa</code>/Workbox, <code>tmp</code>, and <code>@anthropic-ai/sdk</code>.</li>
+    <li>Complete manual browser QA for signup, login, profile edits, project creation, document upload, workflow visibility, and user API-key save/delete.</li>
+  </ul>
+</body>
+</html>

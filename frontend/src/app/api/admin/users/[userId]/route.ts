@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/db";
-import { adminIp, requireAdmin, writeAdminLog } from "@/lib/admin";
+import {
+  adminIp,
+  envRoleForEmail,
+  getUserById,
+  requireAdmin,
+  writeAdminLog,
+} from "@/lib/admin";
 import { errorToResponse } from "@/lib/http-error";
 
 const STATUSES = new Set(["active", "suspended"]);
@@ -16,11 +22,7 @@ export async function PATCH(
     const body = await req.json();
 
     // Fetch target user
-    const { data: user } = await supabase
-      .from("users")
-      .select("id, email")
-      .eq("id", userId)
-      .maybeSingle();
+    const user = await getUserById(userId);
 
     if (!user) {
       return NextResponse.json(
@@ -35,7 +37,14 @@ export async function PATCH(
       .eq("user_id", userId)
       .maybeSingle();
 
-    const targetRole = targetProfile?.role ?? "user";
+    const profileRole = targetProfile?.role ?? "user";
+    const envRole = envRoleForEmail(user.email);
+    const targetRole =
+      envRole === "super_admin" || profileRole === "super_admin"
+        ? "super_admin"
+        : envRole === "admin" || profileRole === "admin"
+          ? "admin"
+          : "user";
 
     if (
       (targetRole === "admin" || targetRole === "super_admin") &&

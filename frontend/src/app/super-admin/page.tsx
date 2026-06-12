@@ -461,6 +461,15 @@ export default function SuperAdminPage() {
         setUserPage(0);
     }, [userSearch, userStatusFilter]);
 
+    const isSuperAdmin = overview?.principal.role === "super_admin";
+
+    // Redirect non-super-admins away
+    useEffect(() => {
+        if (!loading && overview && !isSuperAdmin) {
+            router.replace("/admin");
+        }
+    }, [loading, overview, isSuperAdmin, router]);
+
     // Loading state
     if (loading) {
         return (
@@ -546,16 +555,6 @@ export default function SuperAdminPage() {
     }
 
     if (!overview) return null;
-
-    // Derive super admin status from principal's role in the data
-    const isSuperAdmin = overview.principal.role === "super_admin";
-
-    // Redirect non-super-admins away
-    useEffect(() => {
-        if (!loading && overview && !isSuperAdmin) {
-            router.replace("/admin");
-        }
-    }, [loading, overview, isSuperAdmin, router]);
 
     // If we already know they are not super admin, show access denied immediately
     if (!isSuperAdmin) {

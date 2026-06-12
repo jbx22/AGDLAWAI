@@ -16,6 +16,7 @@ import type {
     TabularReview,
     TabularReviewDetailOut,
 } from "@/app/components/shared/types";
+import { getAuthHeaders } from "./authToken";
 
 // Server-side shape before mapping
 interface ServerMessage {
@@ -37,14 +38,21 @@ interface ServerChatDetailOut {
 const API_BASE =
     process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
 
+function isSameOriginApiBase(baseUrl: string) {
+  if (typeof window === "undefined") return true;
+  if (baseUrl.startsWith("/")) return true;
+
+  try {
+    return new URL(baseUrl, window.location.origin).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 async function getAuthHeader(): Promise<Record<string, string>> {
   if (typeof window === "undefined") return {};
-  const { getSession } = await import("next-auth/react");
-  const session = await getSession();
-  if (!session?.user?.id) return {};
-  // Create a simple JWT-like token for API auth
-  const token = btoa(JSON.stringify({ userId: session.user.id, email: session.user.email }));
-  return { Authorization: `Bearer ${token}` };
+  if (isSameOriginApiBase(API_BASE)) return {};
+  return getAuthHeaders();
 }
 
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {

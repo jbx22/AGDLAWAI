@@ -33,12 +33,15 @@ export async function POST(req: NextRequest) {
 
     const JSZip = (await import("jszip")).default;
     const zip = new JSZip();
+    const seenNames = new Map<string, number>();
     await Promise.all(
       allowed.map(async (doc) => {
         const version = await loadActiveVersion(doc.id, doc.current_version_id);
         if (!version) return;
         const bytes = await downloadFile(version.storage_path);
-        if (bytes) zip.file(doc.filename, Buffer.from(bytes));
+        if (bytes) {
+          zip.file(uniqueZipEntryName(doc.filename, seenNames), Buffer.from(bytes));
+        }
       }),
     );
 
@@ -55,4 +58,28 @@ export async function POST(req: NextRequest) {
     console.error("POST /api/single-documents/download-zip error:", err);
     return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
   }
+}
+
+function safeZipEntryName(filename: string | null | undefined): string {
+  const sanitized = (filename?.trim() || "document")
+    .replace(/[\x00-\x1F\x7F]/g, "_")
+    .replace(/[\\/]+/g, "_")
+    .replace(/\.\.+/g, "_")
+    .replace(/^[A-Za-z]:/, "_")
+    .replace(/^\.+$/, "_")
+    .slice(0, 200)
+    .trim();
+  return sanitized || "document";
+}
+
+function uniqueZipEntryName(filename: string | null | undefined, seen: Map<string, number>): string {
+  const safeName = safeZipEntryName(filename);
+  const count = seen.get(safeName) ?? 0;
+  seen.set(safeName, count + 1);
+  if (count === 0) return safeName;
+
+  const dot = safeName.lastIndexOf(".");
+  const stem = dot > 0 ? safeName.slice(0, dot) : safeName;
+  const ext = dot > 0 ? safeName.slice(dot) : "";
+  return `${stem} (${count + 1})${ext}`;
 }

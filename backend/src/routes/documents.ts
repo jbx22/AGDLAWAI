@@ -188,6 +188,7 @@ documentsRouter.post("/download-zip", requireAuth, async (req, res) => {
 
   const JSZip = (await import("jszip")).default;
   const zip = new JSZip();
+  const seenNames = new Map<string, number>();
 
   await Promise.all(
     docs.map(async (doc) => {
@@ -195,7 +196,7 @@ documentsRouter.post("/download-zip", requireAuth, async (req, res) => {
       if (!active) return;
       const raw = await downloadFile(active.storage_path);
       if (!raw) return;
-      zip.file(doc.filename, Buffer.from(raw));
+      zip.file(uniqueZipEntryName(doc.filename, seenNames), Buffer.from(raw));
     }),
   );
 
@@ -312,6 +313,30 @@ function versionedFilename(filename: string, version: number | null): string {
   const stem = dot > 0 ? filename.slice(0, dot) : filename;
   const ext = dot > 0 ? filename.slice(dot) : ".docx";
   return `${stem} [Edited V${version}]${ext}`;
+}
+
+function safeZipEntryName(filename: string | null | undefined): string {
+  const sanitized = (filename?.trim() || "document")
+    .replace(/[\x00-\x1F\x7F]/g, "_")
+    .replace(/[\\/]+/g, "_")
+    .replace(/\.\.+/g, "_")
+    .replace(/^[A-Za-z]:/, "_")
+    .replace(/^\.+$/, "_")
+    .slice(0, 200)
+    .trim();
+  return sanitized || "document";
+}
+
+function uniqueZipEntryName(filename: string | null | undefined, seen: Map<string, number>): string {
+  const safeName = safeZipEntryName(filename);
+  const count = seen.get(safeName) ?? 0;
+  seen.set(safeName, count + 1);
+  if (count === 0) return safeName;
+
+  const dot = safeName.lastIndexOf(".");
+  const stem = dot > 0 ? safeName.slice(0, dot) : safeName;
+  const ext = dot > 0 ? safeName.slice(dot) : "";
+  return `${stem} (${count + 1})${ext}`;
 }
 
 // Produce the filename a download should present to the user for a given

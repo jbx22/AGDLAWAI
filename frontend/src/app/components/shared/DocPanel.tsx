@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
-import { getSession } from "next-auth/react";
+import { getAuthHeaders } from "@/app/lib/authToken";
 import { applyOptimisticResolution } from "../assistant/EditCard";
 import { DocView } from "./DocView";
 import { DocxView } from "./DocxView";
@@ -355,8 +355,7 @@ function EditResolveButtons({
                 );
             }
             try {
-                const session = await getSession();
-                const token = btoa(JSON.stringify({ userId: session?.user?.id, email: session?.user?.email }));
+                const authHeaders = await getAuthHeaders();
                 const apiBase =
                     process.env.NEXT_PUBLIC_API_BASE_URL ??
                     "http://localhost:3001";
@@ -364,9 +363,7 @@ function EditResolveButtons({
                     `${apiBase}/single-documents/${edit.document_id}/edits/${edit.edit_id}/${verb}`,
                     {
                         method: "POST",
-                        headers: token
-                            ? { Authorization: `Bearer ${token}` }
-                            : undefined,
+                        headers: authHeaders,
                     },
                 );
                 if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -455,8 +452,7 @@ function DownloadButton({
         if (busy || isReloading) return;
         setBusy(true);
         try {
-            const session = await getSession();
-            const token = btoa(JSON.stringify({ userId: session?.user?.id, email: session?.user?.email }));
+            const authHeaders = await getAuthHeaders();
             const apiBase =
                 process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
             const qs = versionId
@@ -465,7 +461,7 @@ function DownloadButton({
             const resp = await fetch(
                 `${apiBase}/single-documents/${documentId}/docx${qs}`,
                 {
-                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                    headers: authHeaders,
                 },
             );
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

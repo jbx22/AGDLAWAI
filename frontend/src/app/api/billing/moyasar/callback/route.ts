@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { subscriptions, userProfiles } from "@/db/schema";
 import { getBillingPlan } from "@/lib/billing/plans";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 type MoyasarCallback = {
     id?: string;
@@ -42,35 +42,109 @@ async function fetchVerifiedInvoice(invoiceId: string): Promise<VerifiedInvoice 
     return (await response.json()) as VerifiedInvoice;
 }
 
-async function applyPaidSubscription(payload: MoyasarCallback | null) {
+function isExpectedPaidInvoice(
+    payload: MoyasarCallback,
+    plan: NonNullable<ReturnType<typeof getBillingPlan>>,
+): boolean {
+    return (
+        payload.status === "paid" &&
+        typeof payload.id === "string" &&
+        payload.id.length > 0 &&
+        payload.amount === plan.amountHalalas &&
+        (payload.currency ?? "").toUpperCase() === "SAR"
+    );
+}
+
+async function hasAppliedInvoice(invoiceId: string): Promise<boolean> {
+    const rows = await db
+        .select({ id: subscriptions.id })
+        .from(subscriptions)
+        .where(
+            and(
+                eq(subscriptions.provider, "moyasar"),
+                eq(subscriptions.provider_invoice_id, invoiceId),
+            ),
+        )
+        .limit(1);
+    return rows.length > 0;
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+    return (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code?: string }).code === "23505"
+    );
+}
+
+async function applyPaidSubscription(payload: MoyasarCallback | null): Promise<boolean> {
     const plan = getBillingPlan(payload?.metadata?.plan_id);
     const userId = payload?.metadata?.user_id;
+    const invoiceId = payload?.id;
 
-    if (payload?.status === "paid" && plan && userId) {
-        const periodEnd = new Date();
-        periodEnd.setMonth(periodEnd.getMonth() + 1);
-
-        await db
-            .update(userProfiles)
-            .set({
-                tier: plan.tier,
-                updated_at: new Date(),
-            })
-            .where(eq(userProfiles.user_id, userId));
-
-        await db.insert(subscriptions).values({
-            user_id: userId,
-            provider: "moyasar",
-            provider_invoice_id: payload.id ?? null,
-            plan_id: plan.id,
-            tier: plan.tier,
-            status: "paid",
-            amount_cents: payload.amount ?? plan.amountHalalas,
-            currency: payload.currency ?? "SAR",
-            current_period_end: periodEnd,
-            metadata: payload,
-        });
+    if (!payload || !plan || !userId || !invoiceId || payload.status !== "paid") {
+        return false;
     }
+    if (!isExpectedPaidInvoice(payload, plan)) {
+        console.warn("Rejected Moyasar invoice with mismatched amount or currency", {
+            invoiceId,
+            planId: plan.id,
+            amount: payload.amount,
+            currency: payload.currency,
+        });
+        return false;
+    }
+    if (await hasAppliedInvoice(invoiceId)) {
+        return false;
+    }
+
+    let applied = false;
+    try {
+        await db.transaction(async (tx) => {
+            const existing = await tx
+                .select({ id: subscriptions.id })
+                .from(subscriptions)
+                .where(
+                    and(
+                        eq(subscriptions.provider, "moyasar"),
+                        eq(subscriptions.provider_invoice_id, invoiceId),
+                    ),
+                )
+                .limit(1);
+            if (existing.length > 0) return;
+
+            const periodEnd = new Date();
+            periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+            await tx
+                .update(userProfiles)
+                .set({
+                    tier: plan.tier,
+                    updated_at: new Date(),
+                })
+                .where(eq(userProfiles.user_id, userId));
+
+            await tx.insert(subscriptions).values({
+                user_id: userId,
+                provider: "moyasar",
+                provider_invoice_id: invoiceId,
+                plan_id: plan.id,
+                tier: plan.tier,
+                status: "paid",
+                amount_cents: plan.amountHalalas,
+                currency: "SAR",
+                current_period_end: periodEnd,
+                metadata: payload,
+            });
+            applied = true;
+        });
+    } catch (error) {
+        if (isUniqueConstraintError(error)) return false;
+        throw error;
+    }
+
+    return applied;
 }
 
 export async function POST(req: NextRequest) {

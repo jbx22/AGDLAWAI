@@ -1,30 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/app/api/auth-helpers";
 import { db } from "@/db";
-import { userProfiles, users } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { userProfiles } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { getTierPolicy } from "@/lib/billing/plans";
 import { envRoleForEmail } from "@/lib/admin";
+import { getUserApiKeyStatus } from "@/lib/userApiKeys";
 import { errorToResponse } from "@/lib/http-error";
 
 const DEFAULT_TABULAR_MODEL = "deepseek-v4-flash";
-
-function apiKeyStatus() {
-  const hasDeepSeek = !!process.env.DEEPSEEK_API_KEY?.trim();
-  const hasOpenAI = !!process.env.OPENAI_API_KEY?.trim();
-  return {
-    deepseek: hasDeepSeek,
-    claude: false,
-    gemini: false,
-    openai: hasOpenAI,
-    sources: {
-      deepseek: hasDeepSeek ? "env" : null,
-      claude: null,
-      gemini: null,
-      openai: hasOpenAI ? "env" : null,
-    },
-  };
-}
 
 // GET /api/user/profile
 export async function GET(req: NextRequest) {
@@ -124,7 +108,7 @@ export async function GET(req: NextRequest) {
       accountStatus: row.account_status || "active",
       suspensionReason: row.suspension_reason,
       tabularModel: row.tabular_model || DEFAULT_TABULAR_MODEL,
-      apiKeyStatus: apiKeyStatus(),
+      apiKeyStatus: await getUserApiKeyStatus(userId),
     });
   } catch (err: any) {
     const response = errorToResponse(err);

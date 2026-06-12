@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { signIn, useSession } from "next-auth/react";
+import { getProviders, signIn, useSession } from "next-auth/react";
+import { AuthDivider, GoogleAuthButton } from "@/app/components/auth/GoogleAuthButton";
 import { SiteLogo } from "@/components/site-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,8 @@ export default function LoginPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
+    const [googleLoading, setGoogleLoading] = useState(false);
+    const [googleEnabled, setGoogleEnabled] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // Redirect already-authenticated users away from login
@@ -66,6 +69,12 @@ export default function LoginPage() {
         }
     }, [pathname]);
 
+    useEffect(() => {
+        getProviders()
+            .then((providers) => setGoogleEnabled(!!providers?.google))
+            .catch(() => setGoogleEnabled(false));
+    }, []);
+
     const locale =
         pathname === "/en" ||
         pathname?.startsWith("/en/") ||
@@ -76,6 +85,9 @@ export default function LoginPage() {
     const textAlign = locale === "ar" ? "text-right" : "text-left";
     const signupHref = locale === "ar" ? "/signup" : "/en/signup";
     const t = copy[locale];
+    const googleLabel = locale === "ar" ? "Sign in with Google" : "Sign in with Google";
+    const googleLoadingLabel = locale === "ar" ? "Connecting..." : "Connecting...";
+    const dividerLabel = locale === "ar" ? "or" : "or";
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -92,6 +104,17 @@ export default function LoginPage() {
             setError(t.failed);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleGoogleLogin = async () => {
+        setGoogleLoading(true);
+        setError(null);
+        try {
+            await signIn("google", { callbackUrl });
+        } catch {
+            setError(t.failed);
+            setGoogleLoading(false);
         }
     };
 
@@ -113,6 +136,18 @@ export default function LoginPage() {
                             </Link>
                         </div>
                     </div>
+                    {googleEnabled && (
+                        <>
+                            <GoogleAuthButton
+                                label={googleLabel}
+                                loadingLabel={googleLoadingLabel}
+                                loading={googleLoading}
+                                disabled={loading}
+                                onClick={handleGoogleLogin}
+                            />
+                            <AuthDivider label={dividerLabel} />
+                        </>
+                    )}
                     <form onSubmit={handleLogin} className="space-y-4">
                         <div className={textAlign}>
                             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">

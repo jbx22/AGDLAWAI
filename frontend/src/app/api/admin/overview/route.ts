@@ -1,23 +1,48 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/db";
-import { requireAdmin } from "@/lib/admin";
+import { getUsersByIds, listAuthUsers, requireAdmin } from "@/lib/admin";
 import { errorToResponse } from "@/lib/http-error";
 
 const numberValue = (value: unknown) => Number(value ?? 0);
 
+type ProfileRow = {
+  user_id: string;
+  role?: string | null;
+  account_status?: string | null;
+  message_credits_used?: number | null;
+  tier?: string | null;
+};
+
+type SubscriptionRow = {
+  user_id?: string | null;
+  status?: string | null;
+  amount_cents?: number | null;
+  created_at?: string | null;
+};
+
+type AuditLogRow = {
+  id: string;
+  actor_email?: string | null;
+  action: string;
+  entity_type: string;
+  entity_id?: string | null;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+};
+
 export async function GET() {
   try {
     const principal = await requireAdmin();
+    const authUsers = await listAuthUsers();
 
     // --- Counts -----------------------------------------------------------
-    const { data: allProfiles } = await supabase.from("user_profiles").select("user_id, role, account_status, message_credits_used");
-    const { count: usersCount } = await supabase.from("users").select("*", { count: "exact", head: true });
+    const { data: allProfiles } = await supabase.from("user_profiles").select("user_id, role, account_status, message_credits_used, tier");
     const { count: projectsCount } = await supabase.from("projects").select("*", { count: "exact", head: true });
     const { count: documentsCount } = await supabase.from("documents").select("*", { count: "exact", head: true });
     const { count: chatsCount } = await supabase.from("chats").select("*", { count: "exact", head: true });
     const { count: tabularReviewsCount } = await supabase.from("tabular_reviews").select("*", { count: "exact", head: true });
 
-    const profiles = allProfiles ?? [];
+    const profiles = (allProfiles ?? []) as ProfileRow[];
     const activeUsers = profiles.filter((p) => p.account_status === "active").length;
     const suspendedUsers = profiles.filter((p) => p.account_status === "suspended").length;
     const admins = profiles.filter((p) => p.role === "admin" || p.role === "super_admin").length;
@@ -33,7 +58,7 @@ export async function GET() {
 
     // --- Subscriptions / financials --------------------------------------
     const { data: allSubs } = await supabase.from("subscriptions").select("*");
-    const subs = allSubs ?? [];
+    const subs = (allSubs ?? []) as SubscriptionRow[];
     const paidSubs = subs.filter((s) => s.status === "paid");
     const pendingSubs = subs.filter((s) => s.status === "pending");
     const activeSubs = subs.filter((s) => s.status === "paid" || s.status === "active");
@@ -41,21 +66,17 @@ export async function GET() {
     const totalRevenueCents = paidSubs.reduce((sum, s) => sum + numberValue(s.amount_cents), 0);
 
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
-    const recentPaidSubs = paidSubs.filter((s) => s.created_at >= thirtyDaysAgo);
+    const recentPaidSubs = paidSubs.filter(
+      (s) => (s.created_at ?? "") >= thirtyDaysAgo
+    );
     const revenue30dCents = recentPaidSubs.reduce((sum, s) => sum + numberValue(s.amount_cents), 0);
 
     const payingUserIds = new Set(paidSubs.map((s) => s.user_id).filter(Boolean));
 
     // --- Recent users ----------------------------------------------------
-    let recentQuery = supabase
-      .from("users")
-      .select("id, email, display_name")
-      .order("created_at", { ascending: false })
-      .limit(20);
-
-    // Admin view scope: super_admin sees all, admin sees non-super-admins
-    const { data: rawRecentUsers, error: recentErr } = await recentQuery;
-    if (recentErr) throw recentErr;
+    const rawRecentUsers = [...authUsers]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 20);
 
     // Enrich with profile data
     const userIds = (rawRecentUsers ?? []).map((u) => u.id);
@@ -73,13 +94,13 @@ export async function GET() {
       return {
         id: u.id,
         email: u.email ?? "",
-        displayName: u.display_name,
+        displayName: u.displayName,
         organisation: p.organisation ?? null,
         tier: p.tier ?? null,
         messageCreditsUsed: p.message_credits_used ?? null,
         role: p.role ?? null,
         accountStatus: p.account_status ?? null,
-        createdAt: u.created_at ?? "",
+        createdAt: u.createdAt,
       };
     });
 
@@ -102,12 +123,10 @@ export async function GET() {
 
     const { data: rawAdmins } = await adminQuery;
     const adminUserIds = (rawAdmins ?? []).map((a) => a.user_id);
-    const { data: adminUserMap } = adminUserIds.length
-      ? await supabase.from("users").select("id, email, display_name").in("id", adminUserIds)
-      : { data: [] as any[] };
+    const adminUserMap = await getUsersByIds(adminUserIds);
 
     const adminByUserId: Record<string, any> = {};
-    for (const u of adminUserMap ?? []) {
+    for (const u of adminUserMap) {
       adminByUserId[u.id] = u;
     }
 
@@ -116,7 +135,7 @@ export async function GET() {
       return {
         id: a.user_id,
         email: u.email ?? "",
-        displayName: u.display_name ?? null,
+        displayName: u.displayName ?? null,
         role: a.role,
         accountStatus: a.account_status,
         suspensionReason: a.suspension_reason ?? null,
@@ -131,7 +150,7 @@ export async function GET() {
       .order("created_at", { ascending: false })
       .limit(25);
 
-    const auditLogList = (auditLogs ?? []).map((l) => ({
+    const auditLogList = ((auditLogs ?? []) as AuditLogRow[]).map((l) => ({
       id: l.id,
       actorEmail: l.actor_email ?? null,
       action: l.action,
@@ -142,13 +161,9 @@ export async function GET() {
     }));
 
     // --- Signups per day (last 30 days) ----------------------------------
-    // Use a simple approach: count from users table
-    const { data: allUsers } = await supabase
-      .from("users")
-      .select("created_at");
     const signupBuckets: Record<string, number> = {};
-    for (const u of allUsers ?? []) {
-      const date = (u.created_at ?? "").slice(0, 10);
+    for (const u of authUsers) {
+      const date = (u.createdAt ?? "").slice(0, 10);
       if (date) {
         signupBuckets[date] = (signupBuckets[date] || 0) + 1;
       }
@@ -190,7 +205,7 @@ export async function GET() {
     return NextResponse.json({
       principal,
       counts: {
-        users: usersCount ?? 0,
+        users: authUsers.length,
         activeUsers,
         suspendedUsers,
         admins,

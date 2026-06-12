@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { requireAuth } from "@/app/api/auth-helpers";
 import { db } from "@/db";
-import { tabularReviews, users } from "@/db/schema";
+import { tabularReviews } from "@/db/schema";
 import { errorToResponse } from "@/lib/http-error";
+import { getUserById, getUsersByEmails } from "@/lib/admin";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ reviewId: string }> }) {
   try {
@@ -11,10 +12,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ reviewI
     const { reviewId } = await params;
     const [review] = await db.select().from(tabularReviews).where(eq(tabularReviews.id, reviewId)).limit(1);
     if (!review) return NextResponse.json({ detail: "Review not found" }, { status: 404 });
-    const [owner] = await db.select({ user_id: users.id, email: users.email, display_name: users.display_name }).from(users).where(eq(users.id, review.user_id)).limit(1);
+    const ownerUser = await getUserById(review.user_id);
     const emails = Array.isArray(review.shared_with) ? review.shared_with.map(String) : [];
-    const members = emails.length ? await db.select({ email: users.email, display_name: users.display_name }).from(users).where(inArray(users.email, emails)) : [];
-    return NextResponse.json({ owner: owner ?? { user_id: review.user_id, email: null, display_name: null }, members });
+    const memberUsers = await getUsersByEmails(emails);
+    const owner = ownerUser
+      ? { user_id: ownerUser.id, email: ownerUser.email, display_name: ownerUser.displayName }
+      : { user_id: review.user_id, email: null, display_name: null };
+    const members = memberUsers.map((user) => ({
+      email: user.email,
+      display_name: user.displayName,
+    }));
+    return NextResponse.json({ owner, members });
   } catch (err) {
     const response = errorToResponse(err);
     if (response) return response;
