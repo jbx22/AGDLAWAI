@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { getProviders, signIn, useSession } from "next-auth/react";
 import { CheckCircle2 } from "lucide-react";
 import { AuthDivider, GoogleAuthButton } from "@/app/components/auth/GoogleAuthButton";
+import { updateUserProfile } from "@/app/lib/mikeApi";
 import { SiteLogo } from "@/components/site-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 
 const copy = {
     ar: {
@@ -74,7 +76,7 @@ const copy = {
 export default function SignupPage() {
     const router = useRouter();
     const pathname = usePathname();
-    const { data: session, status } = useSession();
+    const { isAuthenticated, authLoading } = useAuth();
     const [callbackUrl, setCallbackUrl] = useState("/assistant");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -83,16 +85,16 @@ export default function SignupPage() {
     const [organisation, setOrganisation] = useState("");
     const [loading, setLoading] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
-    const [googleEnabled, setGoogleEnabled] = useState(false);
+    const [googleEnabled] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
 
     // Redirect already-authenticated users away from signup
     useEffect(() => {
-        if (status === "authenticated" && session?.user) {
+        if (!authLoading && isAuthenticated && !success) {
             router.replace(callbackUrl);
         }
-    }, [status, session, router, callbackUrl]);
+    }, [authLoading, isAuthenticated, router, callbackUrl, success]);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -101,12 +103,6 @@ export default function SignupPage() {
             setCallbackUrl(next);
         }
     }, [pathname]);
-
-    useEffect(() => {
-        getProviders()
-            .then((providers) => setGoogleEnabled(!!providers?.google))
-            .catch(() => setGoogleEnabled(false));
-    }, []);
 
     const locale =
         pathname === "/en" ||
@@ -140,24 +136,32 @@ export default function SignupPage() {
         }
 
         try {
-            const res = await fetch("/api/auth/signup", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    email,
-                    password,
-                    name: name.trim() || undefined,
-                    organisation: organisation.trim() || undefined,
-                }),
+            const { data, error } = await supabase.auth.signUp({
+                email,
+                password,
             });
 
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data?.detail || t.failed);
+            if (error) throw error;
+
+            if (data.session) {
+                const trimmedName = name.trim();
+                const trimmedOrg = organisation.trim();
+                if (trimmedName || trimmedOrg) {
+                    try {
+                        await updateUserProfile({
+                            ...(trimmedName && { displayName: trimmedName }),
+                            ...(trimmedOrg && { organisation: trimmedOrg }),
+                        });
+                    } catch (profileError) {
+                        console.error(
+                            "[signup] failed to persist profile fields",
+                            profileError,
+                        );
+                    }
+                }
             }
 
             setSuccess(true);
-            await signIn("credentials", { email, password, redirect: false });
             setTimeout(() => {
                 router.push(callbackUrl);
             }, 2000);
@@ -172,9 +176,14 @@ export default function SignupPage() {
         setGoogleLoading(true);
         setError(null);
         try {
-            await signIn("google", { callbackUrl });
-        } catch {
-            setError(t.failed);
+            const redirectTo = `${window.location.origin}${callbackUrl}`;
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider: "google",
+                options: { redirectTo },
+            });
+            if (error) throw error;
+        } catch (error) {
+            setError(error instanceof Error ? error.message : t.failed);
             setGoogleLoading(false);
         }
     };

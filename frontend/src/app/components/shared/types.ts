@@ -10,6 +10,8 @@ export interface MikeFolder {
   updated_at: string;
 }
 
+export type Folder = MikeFolder;
+
 export interface MikeProject {
   id: string;
   user_id: string;
@@ -25,6 +27,8 @@ export interface MikeProject {
   chat_count?: number;
   review_count?: number;
 }
+
+export type Project = MikeProject;
 
 export interface MikeDocument {
   id: string;
@@ -45,6 +49,8 @@ export interface MikeDocument {
   latest_version_number?: number | null;
 }
 
+export type Document = MikeDocument;
+
 export interface StructureNode {
   id: string;
   title: string;
@@ -60,6 +66,8 @@ export interface MikeChat {
   title: string | null;
   created_at: string;
 }
+
+export type Chat = MikeChat;
 
 export interface MikeEditAnnotation {
   type?: "edit_data";
@@ -79,6 +87,8 @@ export interface MikeEditAnnotation {
   reason?: string;
   status: "pending" | "accepted" | "rejected";
 }
+
+export type EditAnnotation = MikeEditAnnotation;
 
 export type AssistantEvent =
   | { type: "reasoning"; text: string; isStreaming?: boolean }
@@ -154,6 +164,8 @@ export interface MikeMessage {
   error?: string;
 }
 
+export type Message = MikeMessage;
+
 export interface CitationQuote {
   page: number;
   quote: string;
@@ -177,6 +189,8 @@ export interface MikeCitationAnnotation {
   page: number | string;
   quote: string;
 }
+
+export type CitationAnnotation = MikeCitationAnnotation;
 
 const PAGE_BREAK_SENTINEL = "[[PAGE_BREAK]]";
 
@@ -288,12 +302,16 @@ export interface MikeWorkflow {
   is_owner?: boolean;
 }
 
+export type Workflow = MikeWorkflow;
+
 // API helpers
 
 export interface MikeChatDetailOut {
   chat: MikeChat;
   messages: MikeMessage[];
 }
+
+export type ChatDetailOut = MikeChatDetailOut;
 
 export interface TabularReviewDetailOut {
   review: TabularReview;

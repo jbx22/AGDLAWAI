@@ -1,14 +1,16 @@
 "use client";
 
-import { getSession } from "next-auth/react";
+import { supabase } from "@/lib/supabase";
 
 export async function getSupabaseAccessToken(): Promise<string | null> {
   try {
-    const session = await getSession();
-    return session?.supabaseAccessToken ?? null;
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    return session?.access_token ?? null;
   } catch (error) {
     if (process.env.NODE_ENV !== "production") {
-      console.warn("Unable to fetch Auth.js session for API token:", error);
+      console.warn("Unable to fetch Supabase session for API token:", error);
     }
     return null;
   }

@@ -28,7 +28,10 @@ interface UserProfile {
     role: "user" | "admin" | "super_admin";
     accountStatus: "active" | "suspended" | "deleted";
     suspensionReason: string | null;
+    titleModel: string;
     tabularModel: string;
+    mfaOnLogin: boolean;
+    legalResearchUs: boolean;
     apiKeys: ApiKeyState;
 }
 
@@ -54,18 +57,20 @@ const UserProfileContext = createContext<UserProfileContextType | undefined>(
 );
 
 const API_KEY_PROVIDERS: ApiKeyProvider[] = [
-    "deepseek",
     "claude",
     "gemini",
     "openai",
+    "openrouter",
+    "courtlistener",
 ];
 
 function emptyApiKeys(): ApiKeyState {
     return {
-        deepseek: { configured: false, source: null },
         claude: { configured: false, source: null },
         gemini: { configured: false, source: null },
         openai: { configured: false, source: null },
+        openrouter: { configured: false, source: null },
+        courtlistener: { configured: false, source: null },
     };
 }
 
@@ -83,6 +88,9 @@ function toProfile(data: ApiUserProfile): UserProfile {
 
     return {
         ...profile,
+        role: "user",
+        accountStatus: "active",
+        suspensionReason: null,
         apiKeys,
     };
 }

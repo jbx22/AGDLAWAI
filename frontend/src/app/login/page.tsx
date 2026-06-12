@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { getProviders, signIn, useSession } from "next-auth/react";
 import { AuthDivider, GoogleAuthButton } from "@/app/components/auth/GoogleAuthButton";
 import { SiteLogo } from "@/components/site-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 
 const copy = {
     ar: {
@@ -45,21 +46,21 @@ const copy = {
 export default function LoginPage() {
     const router = useRouter();
     const pathname = usePathname();
-    const { data: session, status } = useSession();
+    const { isAuthenticated, authLoading } = useAuth();
     const [callbackUrl, setCallbackUrl] = useState("/assistant");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
-    const [googleEnabled, setGoogleEnabled] = useState(false);
+    const [googleEnabled] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     // Redirect already-authenticated users away from login
     useEffect(() => {
-        if (status === "authenticated" && session?.user) {
+        if (!authLoading && isAuthenticated) {
             router.replace(callbackUrl);
         }
-    }, [status, session, router, callbackUrl]);
+    }, [authLoading, isAuthenticated, router, callbackUrl]);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -68,12 +69,6 @@ export default function LoginPage() {
             setCallbackUrl(next);
         }
     }, [pathname]);
-
-    useEffect(() => {
-        getProviders()
-            .then((providers) => setGoogleEnabled(!!providers?.google))
-            .catch(() => setGoogleEnabled(false));
-    }, []);
 
     const locale =
         pathname === "/en" ||
@@ -94,14 +89,14 @@ export default function LoginPage() {
         setLoading(true);
         setError(null);
         try {
-            const result = await signIn("credentials", { email, password, redirect: false });
-            if (result?.error) {
-                setError(t.invalid);
-            } else {
-                router.push(callbackUrl);
-            }
-        } catch {
-            setError(t.failed);
+            const { error } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            });
+            if (error) throw error;
+            router.push(callbackUrl);
+        } catch (error) {
+            setError(error instanceof Error ? error.message : t.invalid);
         } finally {
             setLoading(false);
         }
@@ -111,9 +106,14 @@ export default function LoginPage() {
         setGoogleLoading(true);
         setError(null);
         try {
-            await signIn("google", { callbackUrl });
-        } catch {
-            setError(t.failed);
+            const redirectTo = `${window.location.origin}${callbackUrl}`;
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider: "google",
+                options: { redirectTo },
+            });
+            if (error) throw error;
+        } catch (error) {
+            setError(error instanceof Error ? error.message : t.failed);
             setGoogleLoading(false);
         }
     };

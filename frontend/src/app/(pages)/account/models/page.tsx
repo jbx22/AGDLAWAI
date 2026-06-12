@@ -23,11 +23,6 @@ import {
 
 const API_KEY_FIELDS = [
     {
-        provider: "deepseek",
-        label: "DeepSeek API Key",
-        placeholder: "sk-...",
-    },
-    {
         provider: "claude",
         label: "Anthropic (Claude) API Key",
         placeholder: "sk-ant-â€¦",
@@ -41,6 +36,16 @@ const API_KEY_FIELDS = [
         provider: "openai",
         label: "OpenAI API Key",
         placeholder: "sk-â€¦",
+    },
+    {
+        provider: "openrouter",
+        label: "OpenRouter API Key",
+        placeholder: "sk-or-...",
+    },
+    {
+        provider: "courtlistener",
+        label: "CourtListener API Token",
+        placeholder: "Token ...",
     },
 ] as const;
 
@@ -68,7 +73,7 @@ export default function ModelsAndApiKeysPage() {
                         <TabularModelDropdown
                             value={
                                 profile?.tabularModel ??
-                                "deepseek-v4-flash"
+                                "gemini-3-flash-preview"
                             }
                             apiKeys={profile?.apiKeys}
                             onChange={(id) =>
@@ -137,8 +142,7 @@ function TabularModelDropdown({
     const [isOpen, setIsOpen] = useState(false);
     const selected = MODELS.find((m) => m.id === value);
     const selectedAvailable = apiKeys ? isModelAvailable(value, apiKeys) : true;
-    const groups: ("DeepSeek" | "Anthropic" | "Google" | "OpenAI")[] = [
-        "DeepSeek",
+    const groups: ("Anthropic" | "Google" | "OpenAI")[] = [
         "Anthropic",
         "Google",
         "OpenAI",

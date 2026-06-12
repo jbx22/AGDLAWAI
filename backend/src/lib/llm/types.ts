@@ -2,7 +2,7 @@
 // Callers always speak OpenAI-style tools + { role, content } messages; each
 // provider translates internally.
 
-export type Provider = "claude" | "gemini" | "openai" | "deepseek";
+export type Provider = "claude" | "gemini" | "openai";
 
 export type OpenAIToolSchema = {
     type: "function";
@@ -40,7 +40,8 @@ export type UserApiKeys = {
     claude?: string | null;
     gemini?: string | null;
     openai?: string | null;
-    deepseek?: string | null;
+    openrouter?: string | null;
+    courtlistener?: string | null;
 };
 
 export type StreamChatParams = {
@@ -59,6 +60,7 @@ export type StreamChatParams = {
      * one-shot completions should leave this off to save tokens and latency.
      */
     enableThinking?: boolean;
+    abortSignal?: AbortSignal;
 };
 
 export type StreamChatResult = {

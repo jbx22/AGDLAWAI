@@ -1,21 +1,25 @@
-/**
- * Real Supabase server client factory.
- *
- * Replaces the old Drizzle-backed adapter that only mimicked the Supabase JS
- * client.  Now returns a genuine @supabase/supabase-js admin client so that
- * all existing code using `createServerSupabase()` works against real Supabase
- * REST + RLS.
- */
+import { createClient } from "@supabase/supabase-js";
 
-import { getSupabase } from "@/db";
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    "";
 
-/**
- * Create a server-side Supabase client with the service_role key.
- * Used by chatTools, userSettings, documentVersions, etc.
- */
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
 export function createServerSupabase() {
-  return getSupabase();
-}
+    const serverUrl = process.env.SUPABASE_URL || supabaseUrl;
+    const serviceKey = process.env.SUPABASE_SECRET_KEY || "";
 
-// Re-export the type so external consumers can reference it.
-export type SupabaseClient = ReturnType<typeof createServerSupabase>;
+    if (!serverUrl || !serviceKey) {
+        throw new Error("Supabase server environment is not configured");
+    }
+
+    return createClient(serverUrl, serviceKey, {
+        auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+        },
+    });
+}

@@ -3,7 +3,12 @@ import { createServerSupabase } from "./supabase";
 import type { UserApiKeys } from "./llm";
 
 type Db = ReturnType<typeof createServerSupabase>;
-export type ApiKeyProvider = "claude" | "gemini" | "openai" | "deepseek";
+export type ApiKeyProvider =
+    | "claude"
+    | "gemini"
+    | "openai"
+    | "openrouter"
+    | "courtlistener";
 export type ApiKeySource = "user" | "env" | null;
 export type ApiKeyStatus = Record<ApiKeyProvider, boolean> & {
     sources: Record<ApiKeyProvider, ApiKeySource>;
@@ -16,16 +21,33 @@ type EncryptedKeyRow = {
     auth_tag: string;
 };
 
-const PROVIDERS: ApiKeyProvider[] = ["deepseek", "openai"];
+const PROVIDERS: ApiKeyProvider[] = [
+    "claude",
+    "gemini",
+    "openai",
+    "openrouter",
+    "courtlistener",
+];
 
 function envApiKey(provider: ApiKeyProvider): string | null {
-    if (provider === "deepseek") {
-        return process.env.DEEPSEEK_API_KEY?.trim() || null;
+    switch (provider) {
+        case "claude":
+            return (
+                process.env.ANTHROPIC_API_KEY?.trim() ||
+                process.env.CLAUDE_API_KEY?.trim() ||
+                null
+            );
+        case "gemini":
+            return process.env.GEMINI_API_KEY?.trim() || null;
+        case "openai":
+            return process.env.OPENAI_API_KEY?.trim() || null;
+        case "openrouter":
+            return process.env.OPENROUTER_API_KEY?.trim() || null;
+        case "courtlistener":
+            return process.env.COURTLISTENER_API_TOKEN?.trim() || null;
+        default:
+            return null;
     }
-    if (provider === "openai") {
-        return process.env.OPENAI_API_KEY?.trim() || null;
-    }
-    return null;
 }
 
 export function hasEnvApiKey(provider: ApiKeyProvider): boolean {
@@ -37,7 +59,7 @@ function encryptionKey(): Buffer {
     if (!secret) {
         throw new Error("USER_API_KEYS_ENCRYPTION_SECRET is not configured");
     }
-    return crypto.createHash("sha256").update(secret).digest();
+    return crypto.scryptSync(secret, "mike-user-api-keys-v1", 32);
 }
 
 function encrypt(value: string): Omit<EncryptedKeyRow, "provider"> {
@@ -89,15 +111,17 @@ export async function getUserApiKeyStatus(
     db: Db = createServerSupabase(),
 ): Promise<ApiKeyStatus> {
     const status: ApiKeyStatus = {
-        deepseek: false,
         claude: false,
         gemini: false,
         openai: false,
+        openrouter: false,
+        courtlistener: false,
         sources: {
-            deepseek: null,
             claude: null,
             gemini: null,
             openai: null,
+            openrouter: null,
+            courtlistener: null,
         },
     };
 
@@ -130,10 +154,11 @@ export async function getUserApiKeys(
     db: Db = createServerSupabase(),
 ): Promise<UserApiKeys> {
     const apiKeys: UserApiKeys = {
-        deepseek: envApiKey("deepseek"),
         claude: envApiKey("claude"),
         gemini: envApiKey("gemini"),
         openai: envApiKey("openai"),
+        openrouter: envApiKey("openrouter"),
+        courtlistener: envApiKey("courtlistener"),
     };
 
     const { data, error } = await db

@@ -12,20 +12,21 @@
 import {
   S3Client,
   PutObjectCommand,
-  GetObjectCommand,
   DeleteObjectCommand,
+  ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
+import * as S3Commands from "@aws-sdk/client-s3";
 import { getSignedUrl as awsGetSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-let cachedClient: S3Client | undefined;
+const GetObjectCommand = (S3Commands as any).GetObjectCommand;
 
-const R2_ENDPOINT = process.env.R2_ENDPOINT_URL || process.env.R2_ENDPOINT;
+let cachedClient: S3Client | undefined;
 
 function getClient(): S3Client {
   if (!cachedClient) {
     cachedClient = new S3Client({
       region: "auto",
-      endpoint: R2_ENDPOINT!,
+      endpoint: process.env.R2_ENDPOINT_URL!,
       forcePathStyle: true,
       credentials: {
         accessKeyId: process.env.R2_ACCESS_KEY_ID!,
@@ -39,7 +40,7 @@ function getClient(): S3Client {
 const BUCKET = process.env.R2_BUCKET_NAME ?? "mike";
 
 export const storageEnabled = Boolean(
-  R2_ENDPOINT &&
+  process.env.R2_ENDPOINT_URL &&
   process.env.R2_ACCESS_KEY_ID &&
   process.env.R2_SECRET_ACCESS_KEY,
 );
@@ -81,15 +82,36 @@ export async function downloadFile(key: string): Promise<ArrayBuffer | null> {
   if (!storageEnabled) return null;
   try {
     const client = getClient();
-    const response = await client.send(
+    const response = (await client.send(
       new GetObjectCommand({ Bucket: BUCKET, Key: key }),
-    );
+    )) as any;
     if (!response.Body) return null;
     const bytes = await response.Body.transformToByteArray();
     return bytes.buffer as ArrayBuffer;
   } catch {
     return null;
   }
+}
+
+export async function listFiles(prefix: string): Promise<string[]> {
+  if (!storageEnabled) return [];
+  const client = getClient();
+  const keys: string[] = [];
+  let ContinuationToken: string | undefined;
+  do {
+    const response = await client.send(
+      new ListObjectsV2Command({
+        Bucket: BUCKET,
+        Prefix: prefix,
+        ContinuationToken,
+      }),
+    );
+    for (const item of response.Contents ?? []) {
+      if (item.Key) keys.push(item.Key);
+    }
+    ContinuationToken = response.NextContinuationToken;
+  } while (ContinuationToken);
+  return keys;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,7 +147,7 @@ export async function getSignedUrl(
       Bucket: BUCKET,
       Key: key,
       ResponseContentDisposition: responseContentDisposition,
-    });
+    }) as any;
     return await awsGetSignedUrl(client, command, { expiresIn });
   } catch {
     return null;
