@@ -24,10 +24,17 @@ function parseEmails(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
+function superAdminEmails(): string[] {
+  return [
+    ...parseEmails(process.env.SUPER_ADMIN_EMAIL),
+    ...parseEmails(process.env.SUPER_ADMIN_EMAILS),
+  ];
+}
+
 export function envRoleForEmail(email: string | null | undefined): AdminRole | null {
   const normalized = (email ?? "").toLowerCase();
   if (!normalized) return null;
-  if (parseEmails(process.env.SUPER_ADMIN_EMAILS).includes(normalized)) return "super_admin";
+  if (superAdminEmails().includes(normalized)) return "super_admin";
   if (parseEmails(process.env.ADMIN_EMAILS).includes(normalized)) return "admin";
   return null;
 }

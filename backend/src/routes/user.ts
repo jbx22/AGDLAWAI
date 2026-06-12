@@ -16,6 +16,7 @@ import {
     normalizeApiKeyProvider,
     saveUserApiKey,
 } from "../lib/userApiKeys";
+import { envRoleForEmail } from "../lib/admin";
 import {
     deleteAllUserChats,
     deleteAllUserTabularReviews,
@@ -210,8 +211,18 @@ async function selectProfileLegacy(
     return legacy;
 }
 
-function serializeProfile(row: UserProfileRow, apiKeyStatus?: ApiKeyStatus) {
+function serializeProfile(
+    row: UserProfileRow,
+    apiKeyStatus?: ApiKeyStatus,
+    userEmail?: string,
+) {
     const creditsUsed = row.message_credits_used ?? 0;
+    const envRole = envRoleForEmail(userEmail);
+    const role =
+        envRole === "super_admin" ||
+        (envRole === "admin" && row.role !== "super_admin")
+            ? envRole
+            : row.role ?? "user";
     const titleFallback = apiKeyStatus?.deepseek
         ? DEEPSEEK_LOW_MODELS[0]
         : apiKeyStatus?.gemini
@@ -228,7 +239,7 @@ function serializeProfile(row: UserProfileRow, apiKeyStatus?: ApiKeyStatus) {
         creditsResetDate: row.credits_reset_date,
         creditsRemaining: Math.max(MONTHLY_CREDIT_LIMIT - creditsUsed, 0),
         tier: row.tier || "Free",
-        role: row.role ?? "user",
+        role,
         accountStatus: row.account_status ?? "active",
         suspensionReason: row.suspension_reason ?? null,
         titleModel: resolveModel(row.title_model, titleFallback),
@@ -391,7 +402,11 @@ async function ensureProfileRow(
 async function loadProfile(
     db: ReturnType<typeof createServerSupabase>,
     userId: string,
-    options: { repairMissing?: boolean; apiKeyStatus?: ApiKeyStatus } = {},
+    options: {
+        repairMissing?: boolean;
+        apiKeyStatus?: ApiKeyStatus;
+        userEmail?: string;
+    } = {},
 ) {
     let { data, error } = await selectProfile(db, userId, "maybe");
 
@@ -435,7 +450,10 @@ async function loadProfile(
         row = resetData as UserProfileRow;
     }
 
-    return { data: serializeProfile(row, options.apiKeyStatus), error: null };
+    return {
+        data: serializeProfile(row, options.apiKeyStatus, options.userEmail),
+        error: null,
+    };
 }
 
 // POST /user/profile
@@ -450,11 +468,13 @@ userRouter.post("/profile", requireAuth, async (_req, res) => {
 // GET /user/profile
 userRouter.get("/profile", requireAuth, async (_req, res) => {
     const userId = res.locals.userId as string;
+    const userEmail = res.locals.userEmail as string | undefined;
     const db = createServerSupabase();
     const apiKeyStatus = await getUserApiKeyStatus(userId, db);
     const { data, error } = await loadProfile(db, userId, {
         repairMissing: true,
         apiKeyStatus,
+        userEmail,
     });
     if (error) return void res.status(500).json({ detail: error.message });
     res.json({ ...data, apiKeyStatus });
@@ -479,7 +499,10 @@ userRouter.patch("/profile", requireAuth, async (req, res) => {
         return void res.status(500).json({ detail: updateError.message });
 
     const apiKeyStatus = await getUserApiKeyStatus(userId, db);
-    const { data, error } = await loadProfile(db, userId, { apiKeyStatus });
+    const { data, error } = await loadProfile(db, userId, {
+        apiKeyStatus,
+        userEmail: res.locals.userEmail as string | undefined,
+    });
     if (error) return void res.status(500).json({ detail: error.message });
     res.json({ ...data, apiKeyStatus });
 });
@@ -525,7 +548,10 @@ userRouter.patch(
             return void res.status(500).json({ detail: updateError.message });
 
         const apiKeyStatus = await getUserApiKeyStatus(userId, db);
-        const { data, error } = await loadProfile(db, userId, { apiKeyStatus });
+        const { data, error } = await loadProfile(db, userId, {
+            apiKeyStatus,
+            userEmail: res.locals.userEmail as string | undefined,
+        });
         if (error) return void res.status(500).json({ detail: error.message });
         res.json({ ...data, apiKeyStatus });
     },
