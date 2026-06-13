@@ -26,6 +26,8 @@ npm run deploy
 
 GitHub Actions deploy:
 
+The workflow template is prepared at `.github/workflows/deploy-cloudflare.yml`, but GitHub requires a token with the `workflow` scope to commit workflow files.
+
 1. Add repository secrets:
    - `CLOUDFLARE_ACCOUNT_ID`
    - `CLOUDFLARE_API_TOKEN`
