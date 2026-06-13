@@ -19,6 +19,18 @@ const app = express();
 const PORT = process.env.PORT ?? 3001;
 const isProduction = process.env.NODE_ENV === "production";
 
+function allowedCorsOrigins(): string | string[] {
+  const rawList = process.env.FRONTEND_URLS;
+  if (rawList) {
+    const origins = rawList
+      .split(",")
+      .map((origin) => origin.trim().replace(/\/$/, ""))
+      .filter(Boolean);
+    if (origins.length > 0) return origins;
+  }
+  return (process.env.FRONTEND_URL ?? "http://localhost:3000").replace(/\/$/, "");
+}
+
 function envInt(name: string, fallback: number): number {
   const raw = process.env[name];
   if (!raw) return fallback;
@@ -115,7 +127,7 @@ app.use(
 
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL ?? "http://localhost:3000",
+    origin: allowedCorsOrigins(),
     credentials: true,
   }),
 );

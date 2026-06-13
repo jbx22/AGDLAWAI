@@ -15,6 +15,7 @@ build
 next-env.d.ts
 .DS_Store
 .vercel
+.wrangler
 coverage
 
 # Local OpenClaw/Codex work notes.

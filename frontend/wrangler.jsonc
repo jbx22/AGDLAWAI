@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "agdlawai",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-06-13",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "routes": [
+    {
+      "pattern": "agdlawai.com",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.agdlawai.com",
+      "custom_domain": true
+    }
+  ]
+}
