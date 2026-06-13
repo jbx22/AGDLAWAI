@@ -5,6 +5,7 @@ import { useUserProfile } from "@/contexts/UserProfileContext";
 import {
     createMoyasarCheckout,
     getSubscriptionOverview,
+    updateSubscriptionAutoRenew,
     type SubscriptionOverview,
 } from "@/app/lib/mikeApi";
 import {
@@ -107,6 +108,18 @@ export default function SubscriptionPage() {
         }
     };
 
+    const toggleAutoRenew = async () => {
+        if (!overview) return;
+        setLoading("auto-renew");
+        try {
+            setOverview(await updateSubscriptionAutoRenew(!overview.entitlement.autoRenew));
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to update auto-renew");
+        } finally {
+            setLoading(null);
+        }
+    };
+
     return (
         <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 md:px-8" dir={dir}>
             <section className="grid gap-4 md:grid-cols-[1.2fr_0.8fr] md:items-end">
@@ -133,6 +146,17 @@ export default function SubscriptionPage() {
                                 ? ` · Trial ends ${new Date(overview.entitlement.trialEndsAt).toLocaleDateString()}`
                                 : ""}
                         </div>
+                        {overview.entitlement.plan.id !== "free" && overview.entitlement.plan.id !== "enterprise" && (
+                            <Button
+                                className="mt-3"
+                                size="sm"
+                                variant="outline"
+                                disabled={loading === "auto-renew"}
+                                onClick={toggleAutoRenew}
+                            >
+                                {overview.entitlement.autoRenew ? "Disable auto-renew" : "Enable auto-renew"}
+                            </Button>
+                        )}
                     </div>
                 )}
             </section>

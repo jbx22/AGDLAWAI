@@ -42,6 +42,16 @@ function estimateTokens(text: string): number {
     return Math.max(1, Math.ceil(text.length / 4));
 }
 
+function isSummaryRequest(messages: ChatMessage[]): boolean {
+    const lastUser = [...messages].reverse().find((message) => message.role === "user");
+    const workflowText = `${lastUser?.workflow?.id ?? ""} ${lastUser?.workflow?.title ?? ""}`.toLowerCase();
+    const content = String(lastUser?.content ?? "").toLowerCase();
+    return (
+        workflowText.includes("summary") ||
+        /\b(summarize|summarise|summary|تلخيص|لخص)\b/i.test(content)
+    );
+}
+
 type AccessibleChat = {
     id: string;
     title: string | null;
@@ -487,6 +497,17 @@ chatRouter.post("/", requireAuth, async (req, res) => {
             entitlement: quota.entitlement,
         });
     }
+    const summaryRequest = isSummaryRequest(messages);
+    if (summaryRequest) {
+        const summaryQuota = await checkQuota(userId, "summaries", 1, db);
+        if (!summaryQuota.ok) {
+            return void res.status(summaryQuota.status).json({
+                code: summaryQuota.code,
+                detail: summaryQuota.detail,
+                entitlement: summaryQuota.entitlement,
+            });
+        }
+    }
     let chatId = chat_id ?? null;
     let chatTitle: string | null = null;
     let resolvedProjectId: string | null = parsedProjectId.projectId;
@@ -627,6 +648,16 @@ chatRouter.post("/", requireAuth, async (req, res) => {
                 metadata: { chatId, projectId: resolvedProjectId },
                 db,
             }),
+            summaryRequest
+                ? recordUsage({
+                    userId,
+                    metric: "summaries",
+                    source: "chat_summary",
+                    model: model ?? null,
+                    metadata: { chatId, projectId: resolvedProjectId },
+                    db,
+                })
+                : Promise.resolve(),
             recordUsage({
                 userId,
                 metric: "tokens",

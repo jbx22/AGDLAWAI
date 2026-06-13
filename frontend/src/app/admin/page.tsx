@@ -105,10 +105,15 @@ export default function AdminPage() {
         }
     };
 
-    const updateSubscription = async (userId: string, planId: string, status = "active") => {
+    const updateSubscription = async (
+        userId: string,
+        planId: string,
+        status = "active",
+        autoRenew?: boolean,
+    ) => {
         setSaving(userId);
         try {
-            await updateUserSubscription(userId, { planId, status });
+            await updateUserSubscription(userId, { planId, status, autoRenew });
             await load();
         } catch (err) {
             alert(err instanceof Error ? err.message : "Failed to update subscription");
@@ -225,6 +230,9 @@ export default function AdminPage() {
                                         <Button size="sm" variant="outline" disabled={!userId || saving === userId} onClick={() => updateSubscription(userId, String(sub.plan_id ?? "free"), "suspended")}>
                                             Suspend
                                         </Button>
+                                        <Button size="sm" variant="outline" disabled={!userId || saving === userId} onClick={() => updateSubscription(userId, String(sub.plan_id ?? "free"), String(sub.status ?? "active"), sub.auto_renew === false)}>
+                                            {sub.auto_renew === false ? "Enable renew" : "Disable renew"}
+                                        </Button>
                                     </div>,
                                 ];
                             })}
@@ -243,8 +251,19 @@ export default function AdminPage() {
 
             {activeTab === "ai" && (
                 <Panel title="AI Usage & Provider Health">
-                    <EmptyAware rows={overview.aiUsageEvents} empty="No AI usage events are being collected yet. TODO: attach token usage logging from each provider adapter.">
-                        <DataTable headers={["Provider", "Model", "Status", "Tokens", "Created"]} rows={overview.aiUsageEvents.map((e) => [String(e.provider ?? "-"), String(e.model ?? "-"), String(e.status ?? "-"), String(e.total_tokens ?? 0), String(e.created_at ?? "-")])} />
+                    <EmptyAware rows={overview.subscriptionUsageEvents} empty="No subscription usage events yet.">
+                        <DataTable
+                            headers={["User", "Metric", "Qty", "Source", "Model", "Period", "Created"]}
+                            rows={overview.subscriptionUsageEvents.map((e) => [
+                                String(e.user_id ?? "-"),
+                                String(e.metric ?? "-"),
+                                String(e.quantity ?? 0),
+                                String(e.source ?? "-"),
+                                String(e.model ?? "-"),
+                                String(e.period_key ?? "-"),
+                                String(e.created_at ?? "-"),
+                            ])}
+                        />
                     </EmptyAware>
                 </Panel>
             )}

@@ -493,6 +493,16 @@ export async function getSubscriptionOverview(): Promise<SubscriptionOverview> {
     return apiRequest<SubscriptionOverview>("/billing/subscription");
 }
 
+export async function updateSubscriptionAutoRenew(
+    enabled: boolean,
+): Promise<SubscriptionOverview> {
+    return apiRequest<SubscriptionOverview>("/billing/subscription/auto-renew", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+    });
+}
+
 export type AdminRole = "user" | "admin" | "super_admin";
 export type AccountStatus = "active" | "suspended" | "deleted";
 

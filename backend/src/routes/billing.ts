@@ -1,8 +1,13 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { createServerSupabase } from "../lib/supabase";
-import { getBillingPlan, nextPeriodEnd } from "../lib/billingPlans";
-import { subscriptionOverview } from "../lib/subscription";
+import { getBillingPlan, nextPeriodEnd, normalizePlanId } from "../lib/billingPlans";
+import {
+  getEntitlement,
+  markPaymentFailed,
+  runSubscriptionMaintenance,
+  subscriptionOverview,
+} from "../lib/subscription";
 
 type MoyasarInvoice = {
   id?: string;
@@ -15,6 +20,26 @@ type MoyasarInvoice = {
     user_id?: string;
     tier?: string;
   };
+};
+
+type MoyasarPayment = {
+  id?: string;
+  status?: string;
+  amount?: number;
+  currency?: string;
+  invoice_id?: string;
+  metadata?: {
+    plan_id?: string;
+    user_id?: string;
+    tier?: string;
+  };
+};
+
+type MoyasarWebhook = {
+  id?: string;
+  type?: string;
+  secret_token?: string;
+  data?: MoyasarPayment;
 };
 
 const MOYASAR_INVOICES_URL = "https://api.moyasar.com/v1/invoices";
@@ -37,6 +62,14 @@ function requestBaseUrl(req: import("express").Request): string {
 
 function moyasarSecret(): string | null {
   return process.env.MOYASAR_SECRET_KEY?.trim() || null;
+}
+
+function moyasarWebhookSecret(): string | null {
+  return process.env.MOYASAR_WEBHOOK_SECRET?.trim() || null;
+}
+
+function cronSecret(): string | null {
+  return (process.env.BILLING_CRON_SECRET ?? process.env.CRON_SECRET ?? "").trim() || null;
 }
 
 async function fetchVerifiedInvoice(invoiceId: string): Promise<MoyasarInvoice | null> {
@@ -145,6 +178,38 @@ async function applyPaidInvoice(invoice: MoyasarInvoice): Promise<boolean> {
   return !insertError;
 }
 
+async function applyFailedPayment(payment: MoyasarPayment, eventId?: string | null) {
+  const invoiceId = payment.invoice_id ?? "";
+  const db = createServerSupabase();
+  const { data: sub } = invoiceId
+    ? await db
+        .from("subscriptions")
+        .select("id, user_id, plan_id, failed_payment_count")
+        .eq("provider", "moyasar")
+        .eq("provider_invoice_id", invoiceId)
+        .maybeSingle()
+    : { data: null };
+  const userId = payment.metadata?.user_id ?? (sub as any)?.user_id ?? null;
+  if (!userId) return false;
+  const planId = normalizePlanId(payment.metadata?.plan_id ?? (sub as any)?.plan_id);
+  await markPaymentFailed({
+    userId,
+    planId,
+    subscriptionId: (sub as any)?.id ?? null,
+    provider: "moyasar",
+    providerEventId: eventId ?? payment.id ?? null,
+    providerInvoiceId: invoiceId || null,
+    amountCents: payment.amount ?? 0,
+    currency: payment.currency ?? "SAR",
+    metadata: {
+      payment,
+      failed_payment_count: Number((sub as any)?.failed_payment_count ?? 0) + 1,
+    },
+    db,
+  });
+  return true;
+}
+
 billingRouter.get("/subscription", requireAuth, async (_req, res) => {
   const userId = res.locals.userId as string;
   try {
@@ -154,6 +219,40 @@ billingRouter.get("/subscription", requireAuth, async (_req, res) => {
       detail: error instanceof Error ? error.message : "Subscription lookup failed",
     });
   }
+});
+
+billingRouter.patch("/subscription/auto-renew", requireAuth, async (req, res) => {
+  const userId = res.locals.userId as string;
+  const enabled = req.body?.enabled;
+  if (typeof enabled !== "boolean") {
+    res.status(400).json({ detail: "enabled must be a boolean" });
+    return;
+  }
+  const db = createServerSupabase();
+  const entitlement = await getEntitlement(userId, db);
+  const now = new Date().toISOString();
+  const [{ error: profileError }, { error: subError }] = await Promise.all([
+    db.from("user_profiles").update({
+      subscription_auto_renew: enabled,
+      updated_at: now,
+    }).eq("user_id", userId),
+    db.from("subscriptions").update({
+      auto_renew: enabled,
+      updated_at: now,
+    }).eq("user_id", userId).in("status", ["active", "past_due", "grace_period"]),
+  ]);
+  if (profileError || subError) {
+    res.status(500).json({ detail: profileError?.message ?? subError?.message });
+    return;
+  }
+  await db.from("subscription_renewal_events").insert({
+    user_id: userId,
+    plan_id: entitlement.plan.id,
+    status: "admin_changed",
+    processed_at: now,
+    metadata: { action: "auto_renew.updated", enabled },
+  });
+  res.json(await subscriptionOverview(userId, db));
 });
 
 billingRouter.post("/moyasar/checkout", requireAuth, async (req, res) => {
@@ -234,6 +333,56 @@ billingRouter.post("/moyasar/callback", async (req, res) => {
   }
   await applyPaidInvoice(verified);
   res.json({ ok: true });
+});
+
+billingRouter.post("/moyasar/webhook", async (req, res) => {
+  const body = req.body as MoyasarWebhook;
+  const configuredSecret = moyasarWebhookSecret();
+  if (configuredSecret && body.secret_token !== configuredSecret) {
+    res.status(401).json({ ok: false, detail: "Invalid webhook secret" });
+    return;
+  }
+
+  const type = String(body.type ?? "");
+  const payment = body.data ?? {};
+  try {
+    if (type === "payment_paid" && payment.invoice_id) {
+      const verified = await fetchVerifiedInvoice(payment.invoice_id);
+      if (verified) await applyPaidInvoice(verified);
+    } else if (type === "payment_faild" || type === "payment_failed" || payment.status === "failed") {
+      await applyFailedPayment(payment, body.id ?? null);
+    }
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("[billing/moyasar/webhook]", error);
+    res.status(500).json({
+      ok: false,
+      detail: error instanceof Error ? error.message : "Webhook processing failed",
+    });
+  }
+});
+
+billingRouter.post("/maintenance/renewals", async (req, res) => {
+  const secret = cronSecret();
+  const provided =
+    req.headers.authorization?.replace(/^Bearer\s+/i, "").trim() ||
+    req.headers["x-cron-secret"]?.toString() ||
+    "";
+  if (secret && provided !== secret) {
+    res.status(401).json({ detail: "Invalid cron secret" });
+    return;
+  }
+  if (!secret && process.env.NODE_ENV === "production") {
+    res.status(503).json({ detail: "Billing cron secret is not configured" });
+    return;
+  }
+  try {
+    res.json(await runSubscriptionMaintenance());
+  } catch (error) {
+    res.status(500).json({
+      detail: error instanceof Error ? error.message : "Renewal maintenance failed",
+    });
+  }
 });
 
 billingRouter.get("/moyasar/callback", async (req, res) => {

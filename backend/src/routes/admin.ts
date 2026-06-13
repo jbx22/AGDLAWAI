@@ -226,12 +226,14 @@ adminRouter.patch("/subscriptions/:userId", requireAdmin, requirePermission("sub
   const now = new Date().toISOString();
   const nextEnd = planId === "free" || planId === "enterprise" ? null : nextPeriodEnd();
   const accountStatus = status === "suspended" ? "suspended" : "active";
+  const autoRenew = req.body?.autoRenew !== false;
   const { error } = await db.from("user_profiles").update({
     tier: plan.tier,
     subscription_plan_id: plan.id,
     subscription_status: status,
     subscription_current_period_end: nextEnd,
     subscription_grace_until: null,
+    subscription_auto_renew: autoRenew,
     account_status: accountStatus,
     suspension_reason: status === "suspended" ? "Suspended by admin subscription action" : null,
     updated_at: now,
@@ -249,7 +251,7 @@ adminRouter.patch("/subscriptions/:userId", requireAdmin, requirePermission("sub
     amount_cents: plan.amountHalalas,
     currency: "SAR",
     current_period_end: nextEnd,
-    auto_renew: req.body?.autoRenew !== false,
+    auto_renew: autoRenew,
     metadata: { changed_by: principal.email, source: "admin_dashboard" },
   }).select("id").single();
   await Promise.all([

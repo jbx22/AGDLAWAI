@@ -24,6 +24,15 @@ export type Entitlement = {
   dailyAiQuestionsUsed: number;
 };
 
+export type MaintenanceResult = {
+  checked: number;
+  trialExpired: number;
+  graceStarted: number;
+  suspended: number;
+  renewalDue: number;
+  autoRenewDisabled: number;
+};
+
 export type QuotaCheck =
   | { ok: true; entitlement: Entitlement }
   | {
@@ -180,6 +189,26 @@ async function maybeApplyGraceOrSuspension(
   }
 
   return profile;
+}
+
+async function hasRecentRenewalEvent(
+  db: Db,
+  userId: string,
+  status: string,
+  since: Date,
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("subscription_renewal_events")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("status", status)
+    .gte("created_at", since.toISOString())
+    .limit(1);
+  if (error) {
+    if (isMissingSubscriptionSchema(error)) return true;
+    throw error;
+  }
+  return (data ?? []).length > 0;
 }
 
 async function currentUsage(userId: string, db: Db): Promise<{
@@ -351,4 +380,130 @@ export async function subscriptionOverview(userId: string, db = createServerSupa
     renewalEvents: renewals ?? [],
     paymentEvents: payments ?? [],
   };
+}
+
+export async function markPaymentFailed(input: {
+  userId: string;
+  planId: string;
+  subscriptionId?: string | null;
+  provider?: string;
+  providerEventId?: string | null;
+  providerInvoiceId?: string | null;
+  amountCents?: number;
+  currency?: string;
+  metadata?: Record<string, unknown>;
+  db?: Db;
+}) {
+  const db = input.db ?? createServerSupabase();
+  const now = new Date();
+  const graceUntil = addDays(now, 3).toISOString();
+  const planId = normalizePlanId(input.planId);
+  await Promise.all([
+    db.from("user_profiles").update({
+      subscription_status: "grace_period",
+      subscription_grace_until: graceUntil,
+      subscription_plan_id: planId,
+      updated_at: now.toISOString(),
+    }).eq("user_id", input.userId),
+    input.subscriptionId
+      ? db.from("subscriptions").update({
+          status: "past_due",
+          failed_payment_count: (input.metadata?.failed_payment_count as number | undefined) ?? 1,
+          last_payment_status: "failed",
+          grace_until: graceUntil,
+          updated_at: now.toISOString(),
+        }).eq("id", input.subscriptionId)
+      : Promise.resolve({ error: null }),
+    db.from("subscription_payment_events").insert({
+      user_id: input.userId,
+      subscription_id: input.subscriptionId ?? null,
+      provider: input.provider ?? "moyasar",
+      provider_event_id: input.providerEventId ?? null,
+      provider_invoice_id: input.providerInvoiceId ?? null,
+      plan_id: planId,
+      status: "failed",
+      amount_cents: input.amountCents ?? 0,
+      currency: input.currency ?? "SAR",
+      metadata: input.metadata ?? {},
+    }),
+    db.from("subscription_renewal_events").insert({
+      user_id: input.userId,
+      subscription_id: input.subscriptionId ?? null,
+      plan_id: planId,
+      status: "payment_failed",
+      processed_at: now.toISOString(),
+      metadata: { grace_until: graceUntil, ...(input.metadata ?? {}) },
+    }),
+    db.from("subscription_renewal_events").insert({
+      user_id: input.userId,
+      subscription_id: input.subscriptionId ?? null,
+      plan_id: planId,
+      status: "grace_started",
+      due_at: graceUntil,
+      processed_at: now.toISOString(),
+      metadata: input.metadata ?? {},
+    }),
+  ]);
+}
+
+export async function runSubscriptionMaintenance(db = createServerSupabase()): Promise<MaintenanceResult> {
+  const result: MaintenanceResult = {
+    checked: 0,
+    trialExpired: 0,
+    graceStarted: 0,
+    suspended: 0,
+    renewalDue: 0,
+    autoRenewDisabled: 0,
+  };
+  const { data, error } = await db
+    .from("user_profiles")
+    .select("user_id, subscription_status, subscription_plan_id, subscription_current_period_end, subscription_grace_until, subscription_auto_renew, trial_ends_at")
+    .in("subscription_status", ["trialing", "active", "past_due", "grace_period"]);
+  if (error) {
+    if (isMissingSubscriptionSchema(error)) return result;
+    throw error;
+  }
+
+  const rows = (data ?? []) as any[];
+  const now = new Date();
+  const tomorrow = addDays(now, 1);
+  const recentWindow = addDays(now, -1);
+  for (const row of rows) {
+    const userId = String(row.user_id);
+    result.checked += 1;
+    const beforeStatus = String(row.subscription_status ?? "");
+    await getEntitlement(userId, db);
+    const { data: after } = await db
+      .from("user_profiles")
+      .select("subscription_status")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const afterStatus = String((after as any)?.subscription_status ?? beforeStatus);
+    if (beforeStatus === "trialing" && afterStatus === "free") result.trialExpired += 1;
+    if (beforeStatus !== "grace_period" && afterStatus === "grace_period") result.graceStarted += 1;
+    if (afterStatus === "suspended") result.suspended += 1;
+
+    const periodEndMs = row.subscription_current_period_end
+      ? Date.parse(String(row.subscription_current_period_end))
+      : 0;
+    if (
+      afterStatus === "active" &&
+      periodEndMs > now.getTime() &&
+      periodEndMs <= tomorrow.getTime()
+    ) {
+      const alreadyLogged = await hasRecentRenewalEvent(db, userId, "renewal_due", recentWindow);
+      if (!alreadyLogged) {
+        await db.from("subscription_renewal_events").insert({
+          user_id: userId,
+          plan_id: normalizePlanId(row.subscription_plan_id),
+          status: "renewal_due",
+          due_at: new Date(periodEndMs).toISOString(),
+          metadata: { auto_renew: row.subscription_auto_renew !== false },
+        });
+        result.renewalDue += 1;
+      }
+      if (row.subscription_auto_renew === false) result.autoRenewDisabled += 1;
+    }
+  }
+  return result;
 }
