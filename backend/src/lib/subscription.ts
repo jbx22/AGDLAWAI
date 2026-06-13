@@ -395,6 +395,16 @@ export async function markPaymentFailed(input: {
   db?: Db;
 }) {
   const db = input.db ?? createServerSupabase();
+  if (input.providerEventId) {
+    const { data: existing, error: existingError } = await db
+      .from("subscription_payment_events")
+      .select("id")
+      .eq("provider", input.provider ?? "moyasar")
+      .eq("provider_event_id", input.providerEventId)
+      .limit(1);
+    if (existingError && !isMissingSubscriptionSchema(existingError)) throw existingError;
+    if ((existing ?? []).length > 0) return;
+  }
   const now = new Date();
   const graceUntil = addDays(now, 3).toISOString();
   const planId = normalizePlanId(input.planId);

@@ -370,6 +370,7 @@ export function ProjectPage({ projectId, initialTab = "documents" }: Props) {
 
         // Immediately hide the input and show an optimistic folder row
         setCreatingFolderIn(undefined);
+        // eslint-disable-next-line react-hooks/purity -- event-handler optimistic id
         const tempId = `temp-${Date.now()}`;
         const optimistic: MikeFolder = {
             id: tempId,

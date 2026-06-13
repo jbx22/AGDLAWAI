@@ -43,6 +43,13 @@ type MoyasarWebhook = {
 };
 
 const MOYASAR_INVOICES_URL = "https://api.moyasar.com/v1/invoices";
+const MOYASAR_PAID_EVENTS = new Set(["payment_paid"]);
+const MOYASAR_FAILED_EVENTS = new Set([
+  "payment_failed",
+  "payment_faild",
+  "payment_abandoned",
+  "payment_voided",
+]);
 
 export const billingRouter = Router();
 
@@ -178,19 +185,39 @@ async function applyPaidInvoice(invoice: MoyasarInvoice): Promise<boolean> {
   return !insertError;
 }
 
+async function paymentEventAlreadyProcessed(
+  db: ReturnType<typeof createServerSupabase>,
+  providerEventId: string | null | undefined,
+): Promise<boolean> {
+  if (!providerEventId) return false;
+  const { data, error } = await db
+    .from("subscription_payment_events")
+    .select("id")
+    .eq("provider", "moyasar")
+    .eq("provider_event_id", providerEventId)
+    .limit(1);
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
+
 async function applyFailedPayment(payment: MoyasarPayment, eventId?: string | null) {
   const invoiceId = payment.invoice_id ?? "";
   const db = createServerSupabase();
+  if (await paymentEventAlreadyProcessed(db, eventId ?? payment.id ?? null)) {
+    return { applied: false, duplicate: true };
+  }
   const { data: sub } = invoiceId
     ? await db
         .from("subscriptions")
-        .select("id, user_id, plan_id, failed_payment_count")
+        .select("id, user_id, plan_id, failed_payment_count, current_period_end")
         .eq("provider", "moyasar")
-        .eq("provider_invoice_id", invoiceId)
+        .or(`provider_invoice_id.eq.${invoiceId},metadata->>id.eq.${invoiceId}`)
+        .order("created_at", { ascending: false })
+        .limit(1)
         .maybeSingle()
     : { data: null };
   const userId = payment.metadata?.user_id ?? (sub as any)?.user_id ?? null;
-  if (!userId) return false;
+  if (!userId) return { applied: false, duplicate: false };
   const planId = normalizePlanId(payment.metadata?.plan_id ?? (sub as any)?.plan_id);
   await markPaymentFailed({
     userId,
@@ -204,10 +231,11 @@ async function applyFailedPayment(payment: MoyasarPayment, eventId?: string | nu
     metadata: {
       payment,
       failed_payment_count: Number((sub as any)?.failed_payment_count ?? 0) + 1,
+      current_period_end: (sub as any)?.current_period_end ?? null,
     },
     db,
   });
-  return true;
+  return { applied: true, duplicate: false };
 }
 
 billingRouter.get("/subscription", requireAuth, async (_req, res) => {
@@ -346,13 +374,18 @@ billingRouter.post("/moyasar/webhook", async (req, res) => {
   const type = String(body.type ?? "");
   const payment = body.data ?? {};
   try {
-    if (type === "payment_paid" && payment.invoice_id) {
+    if (MOYASAR_PAID_EVENTS.has(type) && payment.invoice_id) {
       const verified = await fetchVerifiedInvoice(payment.invoice_id);
       if (verified) await applyPaidInvoice(verified);
-    } else if (type === "payment_faild" || type === "payment_failed" || payment.status === "failed") {
-      await applyFailedPayment(payment, body.id ?? null);
+    } else if (
+      MOYASAR_FAILED_EVENTS.has(type) ||
+      ["failed", "abandoned", "voided"].includes(String(payment.status ?? ""))
+    ) {
+      const result = await applyFailedPayment(payment, body.id ?? null);
+      res.json({ ok: true, processed: result.applied, duplicate: result.duplicate });
+      return;
     }
-    res.json({ ok: true });
+    res.json({ ok: true, processed: false, ignoredType: type || null });
   } catch (error) {
     console.error("[billing/moyasar/webhook]", error);
     res.status(500).json({

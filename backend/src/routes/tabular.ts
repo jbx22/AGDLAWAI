@@ -63,6 +63,19 @@ function estimateTokens(text: string): number {
     return Math.max(1, Math.ceil(text.length / 4));
 }
 
+type TabularColumn = {
+    index: number;
+    name: string;
+    prompt: string;
+    format?: string;
+    tags?: string[];
+};
+
+function isSummaryColumn(column: Pick<TabularColumn, "name" | "prompt">): boolean {
+    const text = `${column.name ?? ""} ${column.prompt ?? ""}`.toLowerCase();
+    return /\b(summary|summarize|summarise|overview|abstract)\b|تلخيص|لخص|ملخص/i.test(text);
+}
+
 export const tabularRouter = Router();
 
 function providerLabel(provider: Provider): string {
@@ -768,14 +781,6 @@ tabularRouter.post(
                 .json({ detail: "document_id and column_index are required" });
 
         const db = createServerSupabase();
-        const quota = await checkQuota(userId, "analyses", 1, db);
-        if (!quota.ok) {
-            return void res.status(quota.status).json({
-                code: quota.code,
-                detail: quota.detail,
-                entitlement: quota.entitlement,
-            });
-        }
         const { data: review, error: reviewError } = await db
             .from("tabular_reviews")
             .select("*")
@@ -787,17 +792,20 @@ tabularRouter.post(
         if (!access.ok)
             return void res.status(404).json({ detail: "Review not found" });
 
-        const column = (
-            review.columns_config as {
-                index: number;
-                name: string;
-                prompt: string;
-                format?: string;
-                tags?: string[];
-            }[]
-        ).find((c) => c.index === column_index);
+        const column = (review.columns_config as TabularColumn[]).find(
+            (c) => c.index === column_index,
+        );
         if (!column)
             return void res.status(400).json({ detail: "Column not found" });
+        const usageMetric = isSummaryColumn(column) ? "summaries" : "analyses";
+        const quota = await checkQuota(userId, usageMetric, 1, db);
+        if (!quota.ok) {
+            return void res.status(quota.status).json({
+                code: quota.code,
+                detail: quota.detail,
+                entitlement: quota.entitlement,
+            });
+        }
 
         const docAllowed = await filterAccessibleDocumentIds(
             [document_id],
@@ -882,8 +890,10 @@ tabularRouter.post(
 
         await recordUsage({
             userId,
-            metric: "analyses",
-            source: "tabular_regenerate_cell",
+            metric: usageMetric,
+            source: usageMetric === "summaries"
+                ? "tabular_regenerate_summary_cell"
+                : "tabular_regenerate_cell",
             model: tabular_model,
             metadata: { reviewId, document_id, column_index },
             db,
@@ -911,13 +921,7 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
     if (!access.ok)
         return void res.status(404).json({ detail: "Review not found" });
 
-    const columns: {
-        index: number;
-        name: string;
-        prompt: string;
-        format?: string;
-        tags?: string[];
-    }[] = review.columns_config ?? [];
+    const columns: TabularColumn[] = review.columns_config ?? [];
     if (columns.length === 0)
         return void res.status(400).json({ detail: "No columns configured" });
 
@@ -960,14 +964,36 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
         }[],
     );
 
-    const analysisUnits = Math.max(1, docs.length);
-    const quota = await checkQuota(userId, "analyses", analysisUnits, db);
-    if (!quota.ok) {
-        return void res.status(quota.status).json({
-            code: quota.code,
-            detail: quota.detail,
-            entitlement: quota.entitlement,
+    let analysisUnits = 0;
+    let summaryUnits = 0;
+    for (const doc of docs) {
+        const docId = doc.id as string;
+        const columnsToProcess = columns.filter((col) => {
+            const cell = cellMap.get(`${docId}:${col.index}`);
+            return !(cell?.status === "done" && cell?.content);
         });
+        if (columnsToProcess.some((col) => isSummaryColumn(col))) summaryUnits += 1;
+        if (columnsToProcess.some((col) => !isSummaryColumn(col))) analysisUnits += 1;
+    }
+    if (analysisUnits > 0) {
+        const quota = await checkQuota(userId, "analyses", analysisUnits, db);
+        if (!quota.ok) {
+            return void res.status(quota.status).json({
+                code: quota.code,
+                detail: quota.detail,
+                entitlement: quota.entitlement,
+            });
+        }
+    }
+    if (summaryUnits > 0) {
+        const quota = await checkQuota(userId, "summaries", summaryUnits, db);
+        if (!quota.ok) {
+            return void res.status(quota.status).json({
+                code: quota.code,
+                detail: quota.detail,
+                entitlement: quota.entitlement,
+            });
+        }
     }
 
     const { tabular_model, api_keys } = await getUserModelSettings(userId, db);
@@ -1095,15 +1121,30 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
             }),
         );
 
-        await recordUsage({
-            userId,
-            metric: "analyses",
-            quantity: analysisUnits,
-            source: "tabular_generate",
-            model: tabular_model,
-            metadata: { reviewId, documentCount: docs.length, columnCount: columns.length },
-            db,
-        });
+        await Promise.all([
+            analysisUnits > 0
+                ? recordUsage({
+                    userId,
+                    metric: "analyses",
+                    quantity: analysisUnits,
+                    source: "tabular_generate",
+                    model: tabular_model,
+                    metadata: { reviewId, documentCount: docs.length, columnCount: columns.length },
+                    db,
+                })
+                : Promise.resolve(),
+            summaryUnits > 0
+                ? recordUsage({
+                    userId,
+                    metric: "summaries",
+                    quantity: summaryUnits,
+                    source: "tabular_generate_summary",
+                    model: tabular_model,
+                    metadata: { reviewId, documentCount: docs.length, columnCount: columns.length },
+                    db,
+                })
+                : Promise.resolve(),
+        ]);
 
         write("data: [DONE]\n\n");
     } catch (err) {
