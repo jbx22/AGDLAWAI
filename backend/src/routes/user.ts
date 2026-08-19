@@ -9,7 +9,7 @@ import {
   normalizeApiKeyProvider,
   saveUserApiKey,
 } from "../lib/userApiKeys";
-import { monthlyAiRequestsForTier } from "../lib/billingPolicy";
+import { dailyAiRequestsForTier } from "../lib/billingPolicy";
 
 export const userRouter = Router();
 
@@ -28,13 +28,13 @@ function serializeProfile(
 ) {
   const creditsUsed = row.message_credits_used ?? 0;
   const tier = row.tier || "Free";
-  const monthlyLimit = monthlyAiRequestsForTier(tier);
+  const dailyLimit = dailyAiRequestsForTier(tier);
   return {
     displayName: row.display_name,
     organisation: row.organisation,
     messageCreditsUsed: creditsUsed,
     creditsResetDate: row.credits_reset_date,
-    creditsRemaining: Math.max(monthlyLimit - creditsUsed, 0),
+    creditsRemaining: Math.max(dailyLimit - creditsUsed, 0),
     tier,
     tabularModel: resolveModel(row.tabular_model, DEFAULT_TABULAR_MODEL),
     ...(apiKeyStatus ? { apiKeyStatus } : {}),
@@ -151,7 +151,7 @@ async function loadProfile(
   let row = data as UserProfileRow;
   if (row.credits_reset_date && new Date() > new Date(row.credits_reset_date)) {
     const creditsResetDate = new Date();
-    creditsResetDate.setDate(creditsResetDate.getDate() + 30);
+    creditsResetDate.setHours(23, 59, 59, 999);
     const { data: resetData, error: resetError } = await db
       .from("user_profiles")
       .update({

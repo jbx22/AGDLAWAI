@@ -4,24 +4,24 @@ import { createServerSupabase } from "./supabase";
 type Db = ReturnType<typeof createServerSupabase>;
 
 type TierPolicy = {
-    monthlyAiRequests: number;
+    dailyAiRequests: number;
     deepseek: boolean;
     openai: boolean;
 };
 
 const TIER_POLICIES: Record<string, TierPolicy> = {
-    Free: { monthlyAiRequests: 0, deepseek: false, openai: false },
-    Professional: { monthlyAiRequests: 30, deepseek: true, openai: false },
-    Business: { monthlyAiRequests: 75, deepseek: true, openai: false },
-    Enterprise: { monthlyAiRequests: 300, deepseek: true, openai: false },
+    Free: { dailyAiRequests: 5, deepseek: true, openai: true },
+    Professional: { dailyAiRequests: 50, deepseek: true, openai: true },
+    Business: { dailyAiRequests: 50, deepseek: true, openai: true },
+    Enterprise: { dailyAiRequests: 50, deepseek: true, openai: true },
 };
 
 function policyForTier(tier: string | null | undefined): TierPolicy {
     return TIER_POLICIES[tier || ""] ?? TIER_POLICIES.Free;
 }
 
-export function monthlyAiRequestsForTier(tier: string | null | undefined): number {
-    return policyForTier(tier).monthlyAiRequests;
+export function dailyAiRequestsForTier(tier: string | null | undefined): number {
+    return policyForTier(tier).dailyAiRequests;
 }
 
 export async function assertAndConsumeAiCredit(
@@ -78,7 +78,7 @@ export async function assertAndConsumeAiCredit(
     const resetAt = data.credits_reset_date ? new Date(String(data.credits_reset_date)) : null;
     if (!resetAt || Number.isNaN(resetAt.getTime()) || new Date() > resetAt) {
         const nextReset = new Date();
-        nextReset.setDate(nextReset.getDate() + 30);
+        nextReset.setHours(23, 59, 59, 999);
         creditsUsed = 0;
         const { error: resetError } = await db
             .from("user_profiles")
@@ -93,11 +93,11 @@ export async function assertAndConsumeAiCredit(
         }
     }
 
-    if (creditsUsed >= policy.monthlyAiRequests) {
+    if (creditsUsed >= policy.dailyAiRequests) {
         return {
             ok: false,
             status: 402,
-            detail: `Monthly AI request limit reached for the ${tier} plan.`,
+            detail: `Daily AI request limit reached for the ${tier} plan.`, 
         };
     }
 
