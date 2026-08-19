@@ -68,7 +68,7 @@ export default function ModelsAndApiKeysPage() {
                         <TabularModelDropdown
                             value={
                                 profile?.tabularModel ??
-                                "deepseek-v4-flash"
+                                "gpt-5.6-luna"
                             }
                             apiKeys={profile?.apiKeys}
                             onChange={(id) =>

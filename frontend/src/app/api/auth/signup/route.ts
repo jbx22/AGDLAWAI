@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       user_id: data.user.id,
       display_name: name?.trim() || null,
       organisation: organisation?.trim() || null,
-      tabular_model: "deepseek-v4-flash",
+      tabular_model: "gpt-5.6-luna",
     });
 
     return NextResponse.json({ ok: true, userId: data.user.id });

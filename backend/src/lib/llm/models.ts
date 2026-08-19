@@ -5,7 +5,7 @@ export const GEMINI_MAIN_MODELS = [
     "gemini-3.1-pro-preview",
     "gemini-3-flash-preview",
 ] as const;
-export const OPENAI_MAIN_MODELS = ["gpt-5.5", "gpt-5.4-mini"] as const;
+export const OPENAI_MAIN_MODELS = ["gpt-5.6-luna", "gpt-5.5", "gpt-5.4-mini"] as const;
 export const DEEPSEEK_MAIN_MODELS = ["deepseek-v4-flash"] as const;
 
 export const CLAUDE_MID_MODELS = ["claude-sonnet-4-6"] as const;
@@ -18,9 +18,9 @@ export const GEMINI_LOW_MODELS = ["gemini-3.1-flash-lite-preview"] as const;
 export const OPENAI_LOW_MODELS = ["gpt-5.4-nano"] as const;
 export const DEEPSEEK_LOW_MODELS = ["deepseek-v4-flash"] as const;
 
-export const DEFAULT_MAIN_MODEL = "deepseek-v4-flash";
-export const DEFAULT_TITLE_MODEL = "deepseek-v4-flash";
-export const DEFAULT_TABULAR_MODEL = "deepseek-v4-flash";
+export const DEFAULT_MAIN_MODEL = "gpt-5.6-luna";
+export const DEFAULT_TITLE_MODEL = "gpt-5.6-luna";
+export const DEFAULT_TABULAR_MODEL = "gpt-5.6-luna";
 
 const ALL_MODELS = new Set<string>([
     ...DEEPSEEK_MAIN_MODELS,

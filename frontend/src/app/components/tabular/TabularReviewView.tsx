@@ -93,7 +93,7 @@ export function TRView({ reviewId, projectId }: Props) {
     const router = useRouter();
     const { profile } = useUserProfile();
     const apiKeys = profile?.apiKeys;
-    const tabularModel = profile?.tabularModel ?? "deepseek-v4-flash";
+    const tabularModel = profile?.tabularModel ?? "gpt-5.6-luna";
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);

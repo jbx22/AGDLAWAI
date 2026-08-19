@@ -110,7 +110,7 @@ export async function ensureProfile(
 
   await supabase.from("user_profiles").insert({
     user_id: userId,
-    tabular_model: "deepseek-v4-flash",
+    tabular_model: "gpt-5.6-luna",
     ...defaults,
   });
 }

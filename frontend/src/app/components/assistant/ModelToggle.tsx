@@ -21,10 +21,11 @@ export interface ModelOption {
 
 export const MODELS: ModelOption[] = [
     { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash", group: "DeepSeek" },
-    { id: "gpt-5.4-mini", label: "OpenAI", group: "OpenAI" },
+    { id: "gpt-5.6-luna", label: "OpenAI GPT-5.6 Luna", group: "OpenAI" },
+    { id: "gpt-5.4-mini", label: "OpenAI GPT-5.4 Mini", group: "OpenAI" },
 ];
 
-export const DEFAULT_MODEL_ID = "deepseek-v4-flash";
+export const DEFAULT_MODEL_ID = "gpt-5.6-luna";
 
 export const ALLOWED_MODEL_IDS = new Set(MODELS.map((m) => m.id));
 

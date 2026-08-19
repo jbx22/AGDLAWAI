@@ -7,7 +7,7 @@ import { getTierPolicy } from "@/lib/billing/plans";
 import { envRoleForEmail } from "@/lib/admin";
 import { errorToResponse } from "@/lib/http-error";
 
-const DEFAULT_TABULAR_MODEL = "deepseek-v4-flash";
+const DEFAULT_TABULAR_MODEL = "gpt-5.6-luna";
 
 function apiKeyStatus() {
   const hasDeepSeek = !!process.env.DEEPSEEK_API_KEY?.trim();
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
         role: "user",
         accountStatus: "active",
         suspensionReason: null,
-        tabularModel: "deepseek-v4-flash",
+        tabularModel: "gpt-5.6-luna",
         apiKeyStatus: {
           deepseek: !!process.env.DEEPSEEK_API_KEY?.trim(),
           claude: false,

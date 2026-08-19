@@ -3,7 +3,7 @@ import { supabase } from "@/db";
 import { adminIp, requireSuperAdmin, writeAdminLog } from "@/lib/admin";
 import { errorToResponse } from "@/lib/http-error";
 
-const DEFAULT_TABULAR_MODEL = "deepseek-v4-flash";
+const DEFAULT_TABULAR_MODEL = "gpt-5.6-luna";
 const ADMIN_ROLES = new Set(["admin", "super_admin"]);
 
 export async function GET() {

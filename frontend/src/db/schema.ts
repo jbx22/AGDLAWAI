@@ -46,7 +46,7 @@ export const userProfiles = pgTable(
     credits_reset_date: timestamp("credits_reset_date", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    tabular_model: text("tabular_model").notNull().default("deepseek-v4-flash"),
+    tabular_model: text("tabular_model").notNull().default("gpt-5.6-luna"),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

@@ -244,7 +244,7 @@ async function main() {
           ${account.role},
           ${account.tier},
           'active',
-          'deepseek-v4-flash'
+          'gpt-5.6-luna'
         )
         ON CONFLICT (user_id) DO UPDATE SET
           display_name = EXCLUDED.display_name,

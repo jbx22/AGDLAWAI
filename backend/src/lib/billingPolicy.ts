@@ -39,7 +39,7 @@ export async function assertAndConsumeAiCredit(
     if (!data) {
         const { error: createError } = await db
             .from("user_profiles")
-            .insert({ user_id: userId, tabular_model: "deepseek-v4-flash" });
+            .insert({ user_id: userId, tabular_model: "gpt-5.6-luna" });
         if (createError) {
             return { ok: false, status: 500, detail: createError.message };
         }
